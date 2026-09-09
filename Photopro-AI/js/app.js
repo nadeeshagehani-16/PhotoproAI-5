@@ -2,6 +2,7 @@
 const NAV_ITEMS = [
   { id:'dashboard', label:'Dashboard', icon:'layout-dashboard' },
   { id:'clients', label:'Clients', icon:'users' },
+  { id:'users', label:'User Management', icon:'shield-check' },
   { id:'bookings', label:'Bookings', icon:'calendar-days' },
   { id:'calendar', label:'Calendar', icon:'calendar' },
   { id:'packages', label:'Packages & Services', icon:'package' },
@@ -31,7 +32,7 @@ function buildSidebar() {
   lucide.createIcons();
 }
 
-function navigate(page) {
+function navigate(page, param) {
   currentPage = page;
   // Update sidebar active state
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -52,13 +53,14 @@ function navigate(page) {
   // Route
   const routes = {
     'dashboard': renderDashboard, 'clients': renderClients, 'client-detail': renderClientDetail,
+    'users': renderUsers,
     'bookings': renderBookings, 'booking-detail': renderBookingDetail, 'calendar': renderCalendar,
     'packages': renderPackages, 'projects': renderProjects, 'project-detail': renderProjectDetail,
     'gallery': renderGallery, 'ai-studio': renderAIStudio, 'invoices': renderInvoices,
     'team': renderTeam, 'reports': renderReports, 'ai-insights': renderAIInsights,
     'notifications': renderNotifications, 'settings': renderSettings, 'client-portal': renderClientPortal,
   };
-  if (routes[page]) routes[page]();
+  if (routes[page]) routes[page](param);
 }
 
 function toggleSidebar() {
