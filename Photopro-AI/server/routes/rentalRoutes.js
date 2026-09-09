@@ -4,7 +4,7 @@ const { getRentals, getRental, createRental, updateRental, deleteRental } = requ
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
-router.route('/').get(getRentals).post(authorize('Admin', 'Staff'), createRental);
-router.route('/:id').get(getRental).put(authorize('Admin', 'Staff'), updateRental).delete(authorize('Admin'), deleteRental);
+router.route('/').get(getRentals).post(createRental);
+router.route('/:id').get(getRental).put(updateRental).delete(deleteRental);
 
 module.exports = router;

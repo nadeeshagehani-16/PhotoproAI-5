@@ -4,7 +4,7 @@ const { getPayments, getPayment, createPayment, updatePayment, deletePayment } =
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
-router.route('/').get(getPayments).post(authorize('Admin', 'Staff'), createPayment);
-router.route('/:id').get(getPayment).put(authorize('Admin'), updatePayment).delete(authorize('Admin'), deletePayment);
+router.route('/').get(getPayments).post(createPayment);
+router.route('/:id').get(getPayment).put(updatePayment).delete(deletePayment);
 
 module.exports = router;

@@ -4,7 +4,7 @@ const { getCustomers, getCustomer, createCustomer, updateCustomer, deleteCustome
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
-router.route('/').get(getCustomers).post(authorize('Admin', 'Staff'), createCustomer);
-router.route('/:id').get(getCustomer).put(authorize('Admin', 'Staff'), updateCustomer).delete(authorize('Admin'), deleteCustomer);
+router.route('/').get(getCustomers).post(createCustomer);
+router.route('/:id').get(getCustomer).put(updateCustomer).delete(deleteCustomer);
 
 module.exports = router;

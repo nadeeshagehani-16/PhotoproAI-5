@@ -4,7 +4,7 @@ const { getPhotographers, getPhotographer, createPhotographer, updatePhotographe
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
-router.route('/').get(getPhotographers).post(authorize('Admin'), createPhotographer);
-router.route('/:id').get(getPhotographer).put(authorize('Admin'), updatePhotographer).delete(authorize('Admin'), deletePhotographer);
+router.route('/').get(getPhotographers).post(createPhotographer);
+router.route('/:id').get(getPhotographer).put(updatePhotographer).delete(deletePhotographer);
 
 module.exports = router;

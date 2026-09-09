@@ -4,7 +4,7 @@ const { getPackages, getPackage, createPackage, updatePackage, deletePackage } =
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
-router.route('/').get(getPackages).post(authorize('Admin', 'Staff'), createPackage);
-router.route('/:id').get(getPackage).put(authorize('Admin', 'Staff'), updatePackage).delete(authorize('Admin'), deletePackage);
+router.route('/').get(getPackages).post(createPackage);
+router.route('/:id').get(getPackage).put(updatePackage).delete(deletePackage);
 
 module.exports = router;

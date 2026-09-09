@@ -4,7 +4,7 @@ const { getServiceBookings, getServiceBooking, createServiceBooking, updateServi
 const { protect, authorize } = require('../middleware/auth');
 
 router.use(protect);
-router.route('/').get(getServiceBookings).post(authorize('Admin', 'Staff'), createServiceBooking);
-router.route('/:id').get(getServiceBooking).put(authorize('Admin', 'Staff'), updateServiceBooking).delete(authorize('Admin'), deleteServiceBooking);
+router.route('/').get(getServiceBookings).post(createServiceBooking);
+router.route('/:id').get(getServiceBooking).put(updateServiceBooking).delete(deleteServiceBooking);
 
 module.exports = router;
