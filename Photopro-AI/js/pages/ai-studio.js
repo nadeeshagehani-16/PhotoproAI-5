@@ -1,4 +1,4 @@
--// AI Photo Studio Page
+// AI Photo Studio Page
 function renderAIStudio() {
   const el = document.getElementById('page-content');
   const tools = [
