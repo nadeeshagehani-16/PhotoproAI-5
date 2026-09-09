@@ -38,10 +38,14 @@ const api = {
       const data = await res.json();
 
       if (res.status === 401) {
-        this.clearAuth();
-        document.getElementById('app-shell')?.classList.add('hidden');
-        document.getElementById('auth-screen')?.classList.remove('hidden');
-        showToast('Session expired. Please sign in again.', 'alert-circle');
+        // Only force logout if this was a real session that expired
+        const isDemoToken = token && token.endsWith('.demo');
+        if (!isDemoToken) {
+          this.clearAuth();
+          document.getElementById('app-shell')?.classList.add('hidden');
+          document.getElementById('auth-screen')?.classList.remove('hidden');
+          showToast('Session expired. Please sign in again.', 'alert-circle');
+        }
         throw new Error(data.message || 'Unauthorized');
       }
 

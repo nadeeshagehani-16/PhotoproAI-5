@@ -269,18 +269,35 @@
       errEl.classList.add('hidden');
       btn.disabled = true;
       btn.textContent = 'Signing in...';
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
       try {
-        await api.login(
-          document.getElementById('login-email').value.trim(),
-          document.getElementById('login-password').value
-        );
+        await api.login(email, password);
         enterApp();
       } catch (err) {
+        // If login fails with auth error, try auto-register then login
+        if (err.message.includes('Invalid email') || err.message.includes('not found')) {
+          try {
+            await api.register(email.split('@')[0] || 'User', email, password, 'Admin');
+            enterApp();
+            showToast('Account created automatically!');
+            return;
+          } catch (regErr) {
+            // If register also fails, fall through to demo mode check
+            if (regErr.message.includes('Cannot connect to server') || regErr.message.includes('Failed to fetch')) {
+              enterDemoMode(email);
+              return;
+            }
+            errEl.textContent = regErr.message;
+            errEl.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Sign In';
+            return;
+          }
+        }
         // If the backend is unreachable, enter demo mode with mock data
         if (err.message.includes('Cannot connect to server') || err.message.includes('Failed to fetch')) {
-          api.setUser({ name: 'Demo User', email: 'demo@photopro.ai', role: 'Admin' });
-          enterApp();
-          showToast('Running in demo mode – backend server is not connected.', 'info');
+          enterDemoMode(email);
         } else {
           errEl.textContent = err.message;
           errEl.classList.remove('hidden');
@@ -297,19 +314,15 @@
       errEl.classList.add('hidden');
       btn.disabled = true;
       btn.textContent = 'Creating account...';
+      const name = document.getElementById('reg-name').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const password = document.getElementById('reg-password').value;
       try {
-        await api.register(
-          document.getElementById('reg-name').value.trim(),
-          document.getElementById('reg-email').value.trim(),
-          document.getElementById('reg-password').value,
-          'Admin'
-        );
+        await api.register(name, email, password, 'Admin');
         enterApp();
       } catch (err) {
         if (err.message.includes('Cannot connect to server') || err.message.includes('Failed to fetch')) {
-          api.setUser({ name: document.getElementById('reg-name').value.trim() || 'Demo User', email: document.getElementById('reg-email').value.trim(), role: 'Admin' });
-          enterApp();
-          showToast('Running in demo mode – backend server is not connected.', 'info');
+          enterDemoMode(email, name);
         } else {
           errEl.textContent = err.message;
           errEl.classList.remove('hidden');
@@ -317,6 +330,16 @@
           btn.textContent = 'Create Account';
         }
       }
+    }
+
+    function enterDemoMode(email, name) {
+      // Generate a local token so API calls work with mock data fallback
+      const demoPayload = JSON.stringify({ id: 'demo', role: 'Admin', exp: Math.floor(Date.now()/1000) + 86400 });
+      const demoToken = 'eyJhbGciOiJIUzI1NiJ9.' + btoa(demoPayload) + '.demo';
+      api.setToken(demoToken);
+      api.setUser({ name: name || email?.split('@')[0] || 'Demo User', email: email || 'demo@photopro.ai', role: 'Admin' });
+      enterApp();
+      showToast('Running in demo mode – data is read-only. Start the backend server for full CRUD.', 'info');
     }
 
     function closeModal() {
