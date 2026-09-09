@@ -105,4 +105,53 @@ const api = {
   async createRental(body) { return this.post('/rentals', body); },
   async updateRental(id, body) { return this.put(`/rentals/${id}`, body); },
   async deleteRental(id) { return this.delete(`/rentals/${id}`); },
+
+  // ── Packages ──
+  async getPackages() { return this.get('/packages'); },
+  async getPackage(id) { return this.get(`/packages/${id}`); },
+  async createPackage(body) { return this.post('/packages', body); },
+  async updatePackage(id, body) { return this.put(`/packages/${id}`, body); },
+  async deletePackage(id) { return this.delete(`/packages/${id}`); },
+
+  // ── Photographers ──
+  async getPhotographers() { return this.get('/photographers'); },
+  async getPhotographer(id) { return this.get(`/photographers/${id}`); },
+  async createPhotographer(body) { return this.post('/photographers', body); },
+  async updatePhotographer(id, body) { return this.put(`/photographers/${id}`, body); },
+  async deletePhotographer(id) { return this.delete(`/photographers/${id}`); },
+
+  // ── Service Bookings ──
+  async getServiceBookings() { return this.get('/service-bookings'); },
+  async getServiceBooking(id) { return this.get(`/service-bookings/${id}`); },
+  async createServiceBooking(body) { return this.post('/service-bookings', body); },
+  async updateServiceBooking(id, body) { return this.put(`/service-bookings/${id}`, body); },
+  async deleteServiceBooking(id) { return this.delete(`/service-bookings/${id}`); },
+
+  // ── Payments ──
+  async getPayments() { return this.get('/payments'); },
+  async getPayment(id) { return this.get(`/payments/${id}`); },
+  async createPayment(body) { return this.post('/payments', body); },
+  async updatePayment(id, body) { return this.put(`/payments/${id}`, body); },
+  async deletePayment(id) { return this.delete(`/payments/${id}`); },
+
+  // ── Deposits ──
+  async getDeposits() { return this.get('/deposits'); },
+  async getDeposit(id) { return this.get(`/deposits/${id}`); },
+  async createDeposit(body) { return this.post('/deposits', body); },
+  async updateDeposit(id, body) { return this.put(`/deposits/${id}`, body); },
+  async deleteDeposit(id) { return this.delete(`/deposits/${id}`); },
+
+  // ── Studios ──
+  async getStudios() { return this.get('/studios'); },
+  async getStudio(id) { return this.get(`/studios/${id}`); },
+  async createStudio(body) { return this.post('/studios', body); },
+  async updateStudio(id, body) { return this.put(`/studios/${id}`, body); },
+  async deleteStudio(id) { return this.delete(`/studios/${id}`); },
+
+  // ── Studio Bookings ──
+  async getStudioBookings() { return this.get('/studio-bookings'); },
+  async getStudioBooking(id) { return this.get(`/studio-bookings/${id}`); },
+  async createStudioBooking(body) { return this.post('/studio-bookings', body); },
+  async updateStudioBooking(id, body) { return this.put(`/studio-bookings/${id}`, body); },
+  async deleteStudioBooking(id) { return this.delete(`/studio-bookings/${id}`); },
 };
