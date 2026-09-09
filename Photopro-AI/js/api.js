@@ -91,4 +91,18 @@ const api = {
   async createUser(body) { return this.post('/users', body); },
   async updateUser(id, body) { return this.put(`/users/${id}`, body); },
   async deleteUser(id) { return this.delete(`/users/${id}`); },
+
+  // ── Equipment ──
+  async getEquipment() { return this.get('/equipment'); },
+  async getEquipmentById(id) { return this.get(`/equipment/${id}`); },
+  async createEquipment(body) { return this.post('/equipment', body); },
+  async updateEquipment(id, body) { return this.put(`/equipment/${id}`, body); },
+  async deleteEquipment(id) { return this.delete(`/equipment/${id}`); },
+
+  // ── Rentals ──
+  async getRentals() { return this.get('/rentals'); },
+  async getRental(id) { return this.get(`/rentals/${id}`); },
+  async createRental(body) { return this.post('/rentals', body); },
+  async updateRental(id, body) { return this.put(`/rentals/${id}`, body); },
+  async deleteRental(id) { return this.delete(`/rentals/${id}`); },
 };
