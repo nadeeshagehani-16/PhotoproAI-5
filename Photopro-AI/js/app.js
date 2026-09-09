@@ -3,6 +3,8 @@ const NAV_ITEMS = [
   { id:'dashboard', label:'Dashboard', icon:'layout-dashboard' },
   { id:'clients', label:'Clients', icon:'users' },
   { id:'users', label:'User Management', icon:'shield-check' },
+  { id:'equipment', label:'Equipment', icon:'camera' },
+  { id:'rentals', label:'Rentals', icon:'key-round' },
   { id:'bookings', label:'Bookings', icon:'calendar-days' },
   { id:'calendar', label:'Calendar', icon:'calendar' },
   { id:'packages', label:'Packages & Services', icon:'package' },
@@ -54,6 +56,7 @@ function navigate(page, param) {
   const routes = {
     'dashboard': renderDashboard, 'clients': renderClients, 'client-detail': renderClientDetail,
     'users': renderUsers,
+    'equipment': renderEquipment, 'rentals': renderRentals,
     'bookings': renderBookings, 'booking-detail': renderBookingDetail, 'calendar': renderCalendar,
     'packages': renderPackages, 'projects': renderProjects, 'project-detail': renderProjectDetail,
     'gallery': renderGallery, 'ai-studio': renderAIStudio, 'invoices': renderInvoices,
