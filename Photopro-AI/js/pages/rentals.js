@@ -26,11 +26,25 @@ async function loadRentals() {
     _rentalEquipment = equipmentRes.data;
     renderRentalsTable(_rentalsCache);
   } catch (err) {
-    document.getElementById('rentals-loading').classList.add('hidden');
-    const content = document.getElementById('rentals-content');
-    content.classList.remove('hidden');
-    content.innerHTML = `<div class="text-center py-16"><i data-lucide="alert-circle" class="w-12 h-12 text-error mx-auto mb-3"></i><p class="text-error font-medium">${err.message}</p><button onclick="loadRentals()" class="btn-dark mt-4 px-6 py-2 text-sm">Retry</button></div>`;
-    lucide.createIcons();
+    // Fall back to mock data for demo mode
+    _rentalsCache = MOCK.rentals || [];
+    _rentalCustomers = MOCK.clients || [];
+    _rentalEquipment = MOCK.equipment || [];
+    if (_rentalsCache.length > 0) {
+      renderRentalsTable(_rentalsCache);
+      const content = document.getElementById('rentals-content');
+      const banner = document.createElement('div');
+      banner.className = 'bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm text-amber-800 flex items-center gap-2';
+      banner.innerHTML = '<i data-lucide="info" class="w-4 h-4"></i><span>Showing demo data. Start the backend server to enable live CRUD operations.</span>';
+      content.prepend(banner);
+      lucide.createIcons();
+    } else {
+      document.getElementById('rentals-loading').classList.add('hidden');
+      const content = document.getElementById('rentals-content');
+      content.classList.remove('hidden');
+      content.innerHTML = `<div class="text-center py-16"><i data-lucide="alert-circle" class="w-12 h-12 text-error mx-auto mb-3"></i><p class="text-error font-medium">${err.message}</p><button onclick="loadRentals()" class="btn-dark mt-4 px-6 py-2 text-sm">Retry</button></div>`;
+      lucide.createIcons();
+    }
   }
 }
 

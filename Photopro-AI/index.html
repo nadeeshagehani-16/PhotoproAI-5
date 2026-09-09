@@ -270,10 +270,17 @@
         );
         enterApp();
       } catch (err) {
-        errEl.textContent = err.message;
-        errEl.classList.remove('hidden');
-        btn.disabled = false;
-        btn.textContent = 'Sign In';
+        // If the backend is unreachable, enter demo mode with mock data
+        if (err.message.includes('Cannot connect to server') || err.message.includes('Failed to fetch')) {
+          api.setUser({ name: 'Demo User', email: 'demo@photopro.ai', role: 'Admin' });
+          enterApp();
+          showToast('Running in demo mode – backend server is not connected.', 'info');
+        } else {
+          errEl.textContent = err.message;
+          errEl.classList.remove('hidden');
+          btn.disabled = false;
+          btn.textContent = 'Sign In';
+        }
       }
     }
 
@@ -293,10 +300,16 @@
         );
         enterApp();
       } catch (err) {
-        errEl.textContent = err.message;
-        errEl.classList.remove('hidden');
-        btn.disabled = false;
-        btn.textContent = 'Create Account';
+        if (err.message.includes('Cannot connect to server') || err.message.includes('Failed to fetch')) {
+          api.setUser({ name: document.getElementById('reg-name').value.trim() || 'Demo User', email: document.getElementById('reg-email').value.trim(), role: 'Admin' });
+          enterApp();
+          showToast('Running in demo mode – backend server is not connected.', 'info');
+        } else {
+          errEl.textContent = err.message;
+          errEl.classList.remove('hidden');
+          btn.disabled = false;
+          btn.textContent = 'Create Account';
+        }
       }
     }
 
