@@ -3,6 +3,15 @@ let _studioBookingsCache = [];
 let _studioBookingsStudios = [];
 let _studioBookingsCustomers = [];
 
+// Helper: reload the page we're currently on (calendar or studio-bookings)
+async function _reloadActivePage() {
+  if (typeof currentPage !== 'undefined' && currentPage === 'calendar' && typeof loadCalendarData === 'function') {
+    await loadCalendarData();
+  } else {
+    await loadStudioBookings();
+  }
+}
+
 async function renderStudioBookings() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -208,7 +217,7 @@ async function handleCreateStudioBooking(e) {
       status: document.getElementById('astb-status').value,
       notes: document.getElementById('astb-notes').value.trim(),
     });
-    closeModal(); showToast('Studio booked!'); await loadStudioBookings();
+    closeModal(); showToast('Studio booked!'); await _reloadActivePage();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Book Studio';
@@ -217,10 +226,14 @@ async function handleCreateStudioBooking(e) {
 
 // ── Edit Studio Booking Modal ──
 function openEditStudioBookingModal(id) {
-  const b = _studioBookingsCache.find(x => (x._id||x.id) == id);
+  let b = _studioBookingsCache.find(x => (x._id||x.id) == id);
+  // Fallback: check calendar's data if studio-bookings cache is empty
+  if (!b && typeof _calStudioBookings !== 'undefined') {
+    b = _calStudioBookings.find(x => (x._id||x.id) == id);
+  }
   if (!b) return;
-  const studios = _studioBookingsStudios.length ? _studioBookingsStudios : MOCK.studios;
-  const clients = _studioBookingsCustomers.length ? _studioBookingsCustomers : MOCK.clients;
+  const studios = _studioBookingsStudios.length ? _studioBookingsStudios : (typeof _calStudios !== 'undefined' && _calStudios.length ? _calStudios : MOCK.studios);
+  const clients = _studioBookingsCustomers.length ? _studioBookingsCustomers : (typeof _calCustomers !== 'undefined' && _calCustomers.length ? _calCustomers : MOCK.clients);
   const studioId = b.studioId?._id || b.studioId || '';
   const custId = b.customerId?._id || b.customerId || '';
   const esc = (s) => (s||'').replace(/"/g, '&quot;');
@@ -274,7 +287,7 @@ async function handleUpdateStudioBooking(e, id) {
       paymentStatus: document.getElementById('estb-payment').value,
       notes: document.getElementById('estb-notes').value.trim(),
     });
-    closeModal(); showToast('Studio booking updated!'); await loadStudioBookings();
+    closeModal(); showToast('Studio booking updated!'); await _reloadActivePage();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Save Changes';
@@ -300,7 +313,7 @@ async function handleDeleteStudioBooking(id) {
   btn.disabled = true; btn.textContent = 'Deleting...';
   try {
     await api.deleteStudioBooking(id);
-    closeModal(); showToast('Studio booking deleted!'); await loadStudioBookings();
+    closeModal(); showToast('Studio booking deleted!'); await _reloadActivePage();
   } catch (err) {
     document.getElementById('dstb-error').textContent = err.message;
     document.getElementById('dstb-error').classList.remove('hidden');

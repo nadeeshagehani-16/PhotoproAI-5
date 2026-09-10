@@ -95,6 +95,7 @@ html { scroll-behavior: smooth; }
 .cal-event.corporate { background: #E0E7FF; color: #3730A3; }
 .cal-event.portrait { background: #D1FAE5; color: #065F46; }
 .cal-event.other { background: #F3E8FF; color: #6B21A8; }
+.cal-event.studio { background: #FEF3C7; color: #92400E; }
 
 /* AI tool card */
 .ai-tool { padding: 1.25rem; border-radius: 1rem; border: 1px solid #E5E7EB; background: white; cursor: pointer; transition: all 0.25s; text-align: center; }
