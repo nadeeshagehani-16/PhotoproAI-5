@@ -6,7 +6,14 @@ let _calStudioBookings = [];
 let _calServiceBookings = [];
 let _calStudios = [];
 let _calCustomers = [];
+let _calPackages = [];
 let _calFilter = 'all';      // all | studio | service
+let _calDemoMode = false;    // true when using mock data (CRUD disabled)
+
+// Check if an ID is a valid MongoDB ObjectId (24 hex chars)
+function isValidObjectId(id) {
+  return /^[0-9a-fA-F]{24}$/.test(String(id));
+}
 
 async function renderCalendar() {
   const el = document.getElementById('page-content');
@@ -48,14 +55,16 @@ async function renderCalendar() {
 }
 
 async function loadCalendarData() {
+  _calDemoMode = false;
   try {
-    const [stbRes, sbRes, studioRes, custRes] = await Promise.all([
-      api.getStudioBookings(), api.getServiceBookings(), api.getStudios(), api.getCustomers()
+    const [stbRes, sbRes, studioRes, custRes, pkgRes] = await Promise.all([
+      api.getStudioBookings(), api.getServiceBookings(), api.getStudios(), api.getCustomers(), api.getPackages()
     ]);
     _calStudioBookings = stbRes.data || [];
     _calServiceBookings = sbRes.data || [];
     _calStudios = studioRes.data || [];
     _calCustomers = custRes.data || [];
+    _calPackages = pkgRes.data || [];
     // Merge into unified list
     _calBookings = [
       ..._calStudioBookings.map(b => ({ ...b, _type: 'studio', _label: b.studioId?.name || 'Studio', _eventClass: 'studio' })),
@@ -65,10 +74,12 @@ async function loadCalendarData() {
     renderCalendarGrid();
   } catch (err) {
     // Fallback to mock data
+    _calDemoMode = true;
     _calStudioBookings = MOCK.studioBookings || [];
     _calServiceBookings = MOCK.serviceBookings || [];
     _calStudios = MOCK.studios || [];
     _calCustomers = MOCK.clients || [];
+    _calPackages = MOCK.packages || [];
     _calBookings = [
       ..._calStudioBookings.map(b => ({ ...b, _type: 'studio', _label: b.studioId?.name || 'Studio', _eventClass: 'studio' })),
       ..._calServiceBookings.map(b => ({ ...b, _type: 'service', _label: b.event || 'Service', _eventClass: getEventClass(b.event) }))
@@ -219,8 +230,13 @@ function openCalAddModal() {
 }
 
 function openCalAddModalForDate(dateStr) {
+  if (_calDemoMode) {
+    showToast('Demo mode – start the backend server to create bookings.', 'alert-circle');
+    return;
+  }
   const studios = _calStudios.length ? _calStudios : MOCK.studios;
   const clients = _calCustomers.length ? _calCustomers : MOCK.clients;
+  const packages = _calPackages.length ? _calPackages : MOCK.packages;
   openModal(`<div class="p-6">
     <div class="flex items-center justify-between mb-6"><h2 class="text-xl font-bold">Add Booking</h2><button onclick="closeModal()" class="btn-action"><i data-lucide="x" class="w-5 h-5"></i></button></div>
     <form id="cal-add-form" onsubmit="handleCalCreate(event)" class="space-y-4">
@@ -257,6 +273,11 @@ function openCalAddModalForDate(dateStr) {
       <div id="cal-event-field" class="hidden"><label class="block text-sm font-medium text-text-secondary mb-1">Event Type *</label>
         <input id="cal-event-name" type="text" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="Wedding, Portrait, Corporate..." />
       </div>
+      <div id="cal-package-field" class="hidden"><label class="block text-sm font-medium text-text-secondary mb-1">Package *</label>
+        <select id="cal-package" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          ${packages.map(p => `<option value="${p._id || p.id}">${p.name} – ${formatCurrency(p.price || 0)}</option>`).join('')}
+        </select>
+      </div>
       <div id="cal-location-field" class="hidden"><label class="block text-sm font-medium text-text-secondary mb-1">Location *</label>
         <input id="cal-location" type="text" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="Event location" />
       </div>
@@ -288,6 +309,7 @@ function toggleCalTypeFields() {
   document.getElementById('cal-studio-field').classList.toggle('hidden', !isStudio);
   document.getElementById('cal-purpose-field').classList.toggle('hidden', !isStudio);
   document.getElementById('cal-event-field').classList.toggle('hidden', isStudio);
+  document.getElementById('cal-package-field').classList.toggle('hidden', isStudio);
   document.getElementById('cal-location-field').classList.toggle('hidden', isStudio);
 }
 
@@ -297,6 +319,19 @@ async function handleCalCreate(e) {
   const btn = document.getElementById('cal-add-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Creating...';
   const type = document.getElementById('cal-type').value;
+
+  // Validate IDs are valid MongoDB ObjectIds
+  const clientId = document.getElementById('cal-client').value;
+  const studioId = type === 'studio' ? document.getElementById('cal-studio').value : null;
+  if (!isValidObjectId(clientId)) {
+    errEl.textContent = 'Invalid client selected. Please ensure the backend server is running and refresh the page.';
+    errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Create Booking'; return;
+  }
+  if (studioId && !isValidObjectId(studioId)) {
+    errEl.textContent = 'Invalid studio selected. Please ensure the backend server is running and refresh the page.';
+    errEl.classList.remove('hidden'); btn.disabled = false; btn.textContent = 'Create Booking'; return;
+  }
+
   try {
     if (type === 'studio') {
       await api.createStudioBooking({
@@ -321,13 +356,14 @@ async function handleCalCreate(e) {
         amount: parseFloat(document.getElementById('cal-cost').value) || 0,
         status: document.getElementById('cal-status').value,
         notes: document.getElementById('cal-notes').value.trim(),
-        packageId: (_calServiceBookings[0]?.packageId?._id) || '',
+        packageId: document.getElementById('cal-package').value,
       });
     }
     closeModal(); showToast('Booking created!');
     await loadCalendarData();
   } catch (err) {
-    errEl.textContent = err.message; errEl.classList.remove('hidden');
+    const msg = err.message === 'Invalid ID format' ? 'Invalid data. Please refresh the page and try again.' : err.message;
+    errEl.textContent = msg; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Create Booking';
   }
 }
@@ -371,8 +407,9 @@ function openCalViewStudioBooking(id) {
       ${b.notes ? `<div><span class="text-text-secondary">Notes:</span><br><span>${b.notes}</span></div>` : ''}
     </div>
     <div class="flex gap-3 pt-4 mt-4 border-t border-border-light">
+      ${_calDemoMode ? '<p class="text-sm text-amber-600 flex-1 py-2.5">Demo mode – start backend server to edit/delete.</p>' : `
       <button onclick="closeModal(); openEditStudioBookingModal('${id}')" class="btn-dark flex-1 py-2.5 text-sm flex items-center justify-center gap-2"><i data-lucide="pencil" class="w-4 h-4"></i> Edit</button>
-      <button onclick="closeModal(); confirmCalDeleteStudio('${id}')" class="flex-1 py-2.5 bg-error text-white rounded-xl text-sm font-semibold hover:bg-red-600 transition flex items-center justify-center gap-2"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>
+      <button onclick="closeModal(); confirmCalDeleteStudio('${id}')" class="flex-1 py-2.5 bg-error text-white rounded-xl text-sm font-semibold hover:bg-red-600 transition flex items-center justify-center gap-2"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>`}
       <button onclick="closeModal()" class="btn-ghost flex-1 py-2.5 text-sm">Close</button>
     </div>
   </div>`);
@@ -409,8 +446,9 @@ function openCalViewServiceBooking(id) {
       ${b.notes ? `<div><span class="text-text-secondary">Notes:</span><br><span>${b.notes}</span></div>` : ''}
     </div>
     <div class="flex gap-3 pt-4 mt-4 border-t border-border-light">
+      ${_calDemoMode ? '<p class="text-sm text-amber-600 flex-1 py-2.5">Demo mode – start backend server to edit/delete.</p>' : `
       <button onclick="closeModal(); openEditCalServiceBooking('${id}')" class="btn-dark flex-1 py-2.5 text-sm flex items-center justify-center gap-2"><i data-lucide="pencil" class="w-4 h-4"></i> Edit</button>
-      <button onclick="closeModal(); confirmCalDeleteService('${id}')" class="flex-1 py-2.5 bg-error text-white rounded-xl text-sm font-semibold hover:bg-red-600 transition flex items-center justify-center gap-2"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>
+      <button onclick="closeModal(); confirmCalDeleteService('${id}')" class="flex-1 py-2.5 bg-error text-white rounded-xl text-sm font-semibold hover:bg-red-600 transition flex items-center justify-center gap-2"><i data-lucide="trash-2" class="w-4 h-4"></i> Delete</button>`}
       <button onclick="closeModal()" class="btn-ghost flex-1 py-2.5 text-sm">Close</button>
     </div>
   </div>`);
