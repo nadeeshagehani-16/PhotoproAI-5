@@ -3,6 +3,49 @@ let _studioBookingsCache = [];
 let _studioBookingsStudios = [];
 let _studioBookingsCustomers = [];
 
+// ── Validation Helpers ──
+function _stbTodayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function _isValidEmail(email) {
+  if (!email) return true; // optional field
+  // Reject special chars like # $ % ^ & * in local part; standard RFC-ish check
+  const re = /^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return re.test(email);
+}
+
+function _validateStudioBooking(data) {
+  const errors = [];
+  const today = _stbTodayStr();
+
+  // Required fields
+  if (!data.studioId) errors.push('Please select a studio.');
+  if (!data.customerId) errors.push('Please select a client.');
+  if (!data.date) errors.push('Please select a booking date.');
+  if (!data.startTime) errors.push('Please enter a start time.');
+  if (!data.endTime) errors.push('Please enter an end time.');
+  if (!data.purpose || !data.purpose.trim()) errors.push('Please enter a purpose for the booking.');
+
+  // Date must be today or future
+  if (data.date && data.date < today) {
+    errors.push('Booking date cannot be in the past. Please select today or a future date.');
+  }
+
+  // End time must be after start time
+  if (data.startTime && data.endTime && data.endTime <= data.startTime) {
+    errors.push('End time must be after start time.');
+  }
+
+  // Cost cannot be negative
+  if (data.totalCost < 0 || isNaN(data.totalCost)) {
+    errors.push('Total cost cannot be negative. Please enter 0 or a positive amount.');
+  }
+
+  return errors;
+}
+
 // Helper: reload the page we're currently on (calendar or studio-bookings)
 async function _reloadActivePage() {
   if (typeof currentPage !== 'undefined' && currentPage === 'calendar' && typeof loadCalendarData === 'function') {
@@ -249,7 +292,7 @@ async function renderAvailableSlots() {
           </select>
         </div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Date</label>
-          <input id="slots-date" type="date" value="${today}" class="px-4 py-2 rounded-xl border border-border-light text-sm" />
+          <input id="slots-date" type="date" value="${today}" min="${today}" class="px-4 py-2 rounded-xl border border-border-light text-sm" />
         </div>
         <div class="flex items-end"><button onclick="loadAvailableSlots()" class="btn-dark px-6 py-2 text-sm">Check Availability</button></div>
       </div>
@@ -324,7 +367,7 @@ function openAddStudioBookingModal() {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Client *</label><select id="astb-client" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">${clients.map(c=>`<option value="${c._id||c.id}">${c.name}</option>`).join('')}</select></div>
       </div>
       <div class="grid grid-cols-3 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="astb-date" type="date" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="astb-date" type="date" required min="${_stbTodayStr()}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Time *</label><input id="astb-start" type="time" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">End Time *</label><input id="astb-end" type="time" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
       </div>
@@ -348,24 +391,30 @@ async function handleCreateStudioBooking(e) {
   const errEl = document.getElementById('astb-error');
   const btn = document.getElementById('astb-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Booking...';
-  const startTime = document.getElementById('astb-start').value;
-  const endTime = document.getElementById('astb-end').value;
-  if (endTime <= startTime) {
-    errEl.textContent = 'End time must be after start time.'; errEl.classList.remove('hidden');
+
+  const formData = {
+    studioId: document.getElementById('astb-studio').value,
+    customerId: document.getElementById('astb-client').value,
+    date: document.getElementById('astb-date').value,
+    startTime: document.getElementById('astb-start').value,
+    endTime: document.getElementById('astb-end').value,
+    purpose: document.getElementById('astb-purpose').value.trim(),
+    totalCost: parseFloat(document.getElementById('astb-cost').value) || 0,
+    status: document.getElementById('astb-status').value,
+    notes: document.getElementById('astb-notes').value.trim(),
+  };
+
+  // Frontend validation
+  const errors = _validateStudioBooking(formData);
+  if (errors.length > 0) {
+    errEl.innerHTML = errors.map(e => '<div class="flex items-center gap-1"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i><span>' + e + '</span></div>').join('');
+    errEl.classList.remove('hidden');
+    lucide.createIcons();
     btn.disabled = false; btn.textContent = 'Book Studio'; return;
   }
+
   try {
-    await api.createStudioBooking({
-      studioId: document.getElementById('astb-studio').value,
-      customerId: document.getElementById('astb-client').value,
-      date: document.getElementById('astb-date').value,
-      startTime,
-      endTime,
-      purpose: document.getElementById('astb-purpose').value.trim(),
-      totalCost: parseFloat(document.getElementById('astb-cost').value) || 0,
-      status: document.getElementById('astb-status').value,
-      notes: document.getElementById('astb-notes').value.trim(),
-    });
+    await api.createStudioBooking(formData);
     closeModal(); showToast('Studio booked successfully!'); await _reloadActivePage();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
@@ -394,7 +443,7 @@ function openEditStudioBookingModal(id) {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Client *</label><select id="estb-client" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">${clients.map(c=>`<option value="${c._id||c.id}" ${(c._id||c.id)===custId?'selected':''}>${c.name}</option>`).join('')}</select></div>
       </div>
       <div class="grid grid-cols-3 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="estb-date" type="date" required value="${formatDateForInput(b.date)}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="estb-date" type="date" required min="${_stbTodayStr()}" value="${formatDateForInput(b.date)}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Time *</label><input id="estb-start" type="time" required value="${b.startTime||''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">End Time *</label><input id="estb-end" type="time" required value="${b.endTime||''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
       </div>
@@ -423,25 +472,31 @@ async function handleUpdateStudioBooking(e, id) {
   const errEl = document.getElementById('estb-error');
   const btn = document.getElementById('estb-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Saving...';
-  const startTime = document.getElementById('estb-start').value;
-  const endTime = document.getElementById('estb-end').value;
-  if (endTime <= startTime) {
-    errEl.textContent = 'End time must be after start time.'; errEl.classList.remove('hidden');
+
+  const formData = {
+    studioId: document.getElementById('estb-studio').value,
+    customerId: document.getElementById('estb-client').value,
+    date: document.getElementById('estb-date').value,
+    startTime: document.getElementById('estb-start').value,
+    endTime: document.getElementById('estb-end').value,
+    purpose: document.getElementById('estb-purpose').value.trim(),
+    totalCost: parseFloat(document.getElementById('estb-cost').value) || 0,
+    status: document.getElementById('estb-status').value,
+    paymentStatus: document.getElementById('estb-payment').value,
+    notes: document.getElementById('estb-notes').value.trim(),
+  };
+
+  // Frontend validation
+  const errors = _validateStudioBooking(formData);
+  if (errors.length > 0) {
+    errEl.innerHTML = errors.map(e => '<div class="flex items-center gap-1"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i><span>' + e + '</span></div>').join('');
+    errEl.classList.remove('hidden');
+    lucide.createIcons();
     btn.disabled = false; btn.textContent = 'Save Changes'; return;
   }
+
   try {
-    await api.updateStudioBooking(id, {
-      studioId: document.getElementById('estb-studio').value,
-      customerId: document.getElementById('estb-client').value,
-      date: document.getElementById('estb-date').value,
-      startTime,
-      endTime,
-      purpose: document.getElementById('estb-purpose').value.trim(),
-      totalCost: parseFloat(document.getElementById('estb-cost').value) || 0,
-      status: document.getElementById('estb-status').value,
-      paymentStatus: document.getElementById('estb-payment').value,
-      notes: document.getElementById('estb-notes').value.trim(),
-    });
+    await api.updateStudioBooking(id, formData);
     closeModal(); showToast('Studio booking updated successfully!'); await _reloadActivePage();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');

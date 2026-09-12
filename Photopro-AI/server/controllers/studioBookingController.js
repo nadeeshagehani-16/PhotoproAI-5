@@ -1,4 +1,67 @@
 const StudioBooking = require('../models/StudioBooking');
+const mongoose = require('mongoose');
+
+// ── Shared validation helper ──
+function _validateBookingData(body, isUpdate = false) {
+  const errors = [];
+  const { studioId, customerId, date, startTime, endTime, totalCost, purpose } = body;
+
+  // Only validate required fields on create, or if they're present on update
+  if (!isUpdate || studioId || customerId || date || startTime || endTime) {
+    if (!studioId && !isUpdate) errors.push('Studio is required.');
+    if (!customerId && !isUpdate) errors.push('Customer is required.');
+    if (!date && !isUpdate) errors.push('Booking date is required.');
+    if (!startTime && !isUpdate) errors.push('Start time is required.');
+    if (!endTime && !isUpdate) errors.push('End time is required.');
+  }
+
+  // Validate purpose is provided on create
+  if (!isUpdate && (!purpose || !purpose.trim())) {
+    errors.push('Purpose is required.');
+  }
+
+  // Validate ObjectId format
+  if (studioId && !mongoose.Types.ObjectId.isValid(studioId)) {
+    errors.push('Invalid studio ID format.');
+  }
+  if (customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
+    errors.push('Invalid customer ID format.');
+  }
+
+  // Validate time format (HH:MM)
+  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  if (startTime && !timeRegex.test(startTime)) {
+    errors.push('Invalid start time format. Use HH:MM (e.g. 10:00).');
+  }
+  if (endTime && !timeRegex.test(endTime)) {
+    errors.push('Invalid end time format. Use HH:MM (e.g. 12:00).');
+  }
+
+  // End time must be after start time
+  if (startTime && endTime && endTime <= startTime) {
+    errors.push('End time must be after start time.');
+  }
+
+  // Date must be today or future (compare date string yyyy-MM-dd)
+  if (date) {
+    const dateStr = new Date(date).toISOString().split('T')[0];
+    const today = new Date();
+    const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+    if (dateStr < todayStr) {
+      errors.push('Booking date cannot be in the past.');
+    }
+  }
+
+  // Total cost cannot be negative
+  if (totalCost !== undefined && totalCost !== null && totalCost !== '') {
+    const cost = parseFloat(totalCost);
+    if (isNaN(cost) || cost < 0) {
+      errors.push('Total cost cannot be negative.');
+    }
+  }
+
+  return errors;
+}
 
 exports.getStudioBookings = async (req, res, next) => {
   try {
@@ -23,9 +86,10 @@ exports.createStudioBooking = async (req, res, next) => {
   try {
     const { studioId, date, startTime, endTime } = req.body;
 
-    // Validate end time is after start time
-    if (endTime && startTime && endTime <= startTime) {
-      return res.status(400).json({ success: false, message: 'End time must be after start time' });
+    // Comprehensive validation
+    const validationErrors = _validateBookingData(req.body, false);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ success: false, message: validationErrors.join(' ') });
     }
 
     // Prevent studio double-booking
@@ -51,6 +115,12 @@ exports.updateStudioBooking = async (req, res, next) => {
   try {
     const existing = await StudioBooking.findById(req.params.id);
     if (!existing) return res.status(404).json({ success: false, message: 'Studio booking not found' });
+
+    // Validate incoming fields
+    const validationErrors = _validateBookingData(req.body, true);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ success: false, message: validationErrors.join(' ') });
+    }
 
     const { studioId, date, startTime, endTime, status } = req.body;
     const finalStudioId = studioId || existing.studioId;
