@@ -1,6 +1,36 @@
 // Photographers / Team Management Page – Full CRUD
 let _photographersCache = [];
 
+// ── Validation Helpers ──
+function _validatePhotographerForm(data) {
+  const errors = [];
+  if (!data.name) errors.push('Full name is required.');
+  if (!data.email) {
+    errors.push('Email is required.');
+  } else {
+    // Reject special chars like # $ % ^ & * ; standard email format check
+    const emailRegex = /^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(data.email)) {
+      errors.push('Please enter a valid email address (e.g. name@example.com).');
+    }
+  }
+  if (!data.specialization) errors.push('Specialization is required.');
+  if (data.phone) {
+    const phoneRegex = /^\+?[0-9]{7,15}$/;
+    if (!phoneRegex.test(data.phone.replace(/[\s-]/g, ''))) {
+      errors.push('Please enter a valid phone number (7-15 digits).');
+    }
+  }
+  return errors;
+}
+
+function _showPhErrors(errEl, errors, btn, btnText) {
+  errEl.innerHTML = errors.map(e => '<div class="flex items-center gap-1"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i><span>' + e + '</span></div>').join('');
+  errEl.classList.remove('hidden');
+  lucide.createIcons();
+  btn.disabled = false; btn.textContent = btnText;
+}
+
 async function renderTeam() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -145,17 +175,27 @@ async function handleCreatePhotographer(e) {
   const errEl = document.getElementById('aph-error');
   const btn = document.getElementById('aph-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Adding...';
+
+  const formData = {
+    name: document.getElementById('aph-name').value.trim(),
+    email: document.getElementById('aph-email').value.trim(),
+    phone: document.getElementById('aph-phone').value.trim(),
+    specialization: document.getElementById('aph-spec').value,
+    role: document.getElementById('aph-role').value,
+    availability: document.getElementById('aph-avail').value,
+    bio: document.getElementById('aph-bio').value.trim(),
+  };
+
+  // Frontend validation
+  const errors = _validatePhotographerForm(formData);
+  if (errors.length > 0) {
+    _showPhErrors(errEl, errors, btn, 'Add Photographer');
+    return;
+  }
+
   try {
-    await api.createPhotographer({
-      name: document.getElementById('aph-name').value.trim(),
-      email: document.getElementById('aph-email').value.trim(),
-      phone: document.getElementById('aph-phone').value.trim(),
-      specialization: document.getElementById('aph-spec').value,
-      role: document.getElementById('aph-role').value,
-      availability: document.getElementById('aph-avail').value,
-      bio: document.getElementById('aph-bio').value.trim(),
-    });
-    closeModal(); showToast('Photographer added successfully!'); await loadPhotographers();
+    await api.createPhotographer(formData);
+    closeModal(); showToast('Photographer created successfully!'); await loadPhotographers();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Add Photographer';
@@ -203,17 +243,27 @@ async function handleUpdatePhotographer(e, id) {
   const errEl = document.getElementById('eph-error');
   const btn = document.getElementById('eph-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Saving...';
+
+  const formData = {
+    name: document.getElementById('eph-name').value.trim(),
+    email: document.getElementById('eph-email').value.trim(),
+    phone: document.getElementById('eph-phone').value.trim(),
+    specialization: document.getElementById('eph-spec').value,
+    role: document.getElementById('eph-role').value,
+    availability: document.getElementById('eph-avail').value,
+    bio: document.getElementById('eph-bio').value.trim(),
+  };
+
+  // Frontend validation
+  const errors = _validatePhotographerForm(formData);
+  if (errors.length > 0) {
+    _showPhErrors(errEl, errors, btn, 'Save Changes');
+    return;
+  }
+
   try {
-    await api.updatePhotographer(id, {
-      name: document.getElementById('eph-name').value.trim(),
-      email: document.getElementById('eph-email').value.trim(),
-      phone: document.getElementById('eph-phone').value.trim(),
-      specialization: document.getElementById('eph-spec').value,
-      role: document.getElementById('eph-role').value,
-      availability: document.getElementById('eph-avail').value,
-      bio: document.getElementById('eph-bio').value.trim(),
-    });
-    closeModal(); showToast('Photographer updated!'); await loadPhotographers();
+    await api.updatePhotographer(id, formData);
+    closeModal(); showToast('Photographer updated successfully!'); await loadPhotographers();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Save Changes';
@@ -239,7 +289,7 @@ async function handleDeletePhotographer(id) {
   btn.disabled = true; btn.textContent = 'Removing...';
   try {
     await api.deletePhotographer(id);
-    closeModal(); showToast('Photographer removed!'); await loadPhotographers();
+    closeModal(); showToast('Photographer deleted successfully!'); await loadPhotographers();
   } catch (err) {
     document.getElementById('dph-error').textContent = err.message;
     document.getElementById('dph-error').classList.remove('hidden');

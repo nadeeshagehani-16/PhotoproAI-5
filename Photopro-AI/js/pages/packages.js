@@ -1,6 +1,28 @@
 // Packages & Services Page – Full CRUD
 let _packagesCache = [];
 
+// ── Validation Helper ──
+function _validatePackageForm(data) {
+  const errors = [];
+  if (!data.name) errors.push('Package name is required.');
+  if (data.price === undefined || data.price === null || isNaN(data.price)) {
+    errors.push('Price is required and must be a valid number.');
+  } else if (data.price < 0) {
+    errors.push('Price cannot be negative.');
+  }
+  if (!data.duration) errors.push('Duration is required.');
+  if (data.photos < 0 || isNaN(data.photos)) errors.push('Photos count cannot be negative.');
+  if (data.photographers < 1 || isNaN(data.photographers)) errors.push('Photographers count must be at least 1.');
+  return errors;
+}
+
+function _showPkgErrors(errEl, errors, btn, btnText) {
+  errEl.innerHTML = errors.map(e => '<div class="flex items-center gap-1"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i><span>' + e + '</span></div>').join('');
+  errEl.classList.remove('hidden');
+  lucide.createIcons();
+  btn.disabled = false; btn.textContent = btnText;
+}
+
 async function renderPackages() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -111,20 +133,30 @@ async function handleCreatePackage(e) {
   const btn = document.getElementById('ap-submit');
   errEl.classList.add('hidden');
   btn.disabled = true; btn.textContent = 'Creating...';
+
+  const features = document.getElementById('ap-features').value.split(',').map(s => s.trim()).filter(Boolean);
+  const formData = {
+    name: document.getElementById('ap-name').value.trim(),
+    price: parseFloat(document.getElementById('ap-price').value),
+    duration: document.getElementById('ap-duration').value.trim(),
+    photos: parseInt(document.getElementById('ap-photos').value) || 0,
+    photographers: parseInt(document.getElementById('ap-photographers').value) || 1,
+    description: document.getElementById('ap-description').value.trim(),
+    features,
+    popular: document.getElementById('ap-popular').checked,
+  };
+
+  // Frontend validation
+  const errors = _validatePackageForm(formData);
+  if (errors.length > 0) {
+    _showPkgErrors(errEl, errors, btn, 'Add Package');
+    return;
+  }
+
   try {
-    const features = document.getElementById('ap-features').value.split(',').map(s => s.trim()).filter(Boolean);
-    await api.createPackage({
-      name: document.getElementById('ap-name').value.trim(),
-      price: parseFloat(document.getElementById('ap-price').value),
-      duration: document.getElementById('ap-duration').value.trim(),
-      photos: parseInt(document.getElementById('ap-photos').value) || 0,
-      photographers: parseInt(document.getElementById('ap-photographers').value) || 1,
-      description: document.getElementById('ap-description').value.trim(),
-      features,
-      popular: document.getElementById('ap-popular').checked,
-    });
+    await api.createPackage(formData);
     closeModal();
-    showToast('Package added successfully!');
+    showToast('Package created successfully!');
     await loadPackages();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
@@ -167,18 +199,28 @@ async function handleUpdatePackage(e, id) {
   const btn = document.getElementById('ep-submit');
   errEl.classList.add('hidden');
   btn.disabled = true; btn.textContent = 'Saving...';
+
+  const features = document.getElementById('ep-features').value.split(',').map(s => s.trim()).filter(Boolean);
+  const formData = {
+    name: document.getElementById('ep-name').value.trim(),
+    price: parseFloat(document.getElementById('ep-price').value),
+    duration: document.getElementById('ep-duration').value.trim(),
+    photos: parseInt(document.getElementById('ep-photos').value) || 0,
+    photographers: parseInt(document.getElementById('ep-photographers').value) || 1,
+    description: document.getElementById('ep-description').value.trim(),
+    features,
+    popular: document.getElementById('ep-popular').checked,
+  };
+
+  // Frontend validation
+  const errors = _validatePackageForm(formData);
+  if (errors.length > 0) {
+    _showPkgErrors(errEl, errors, btn, 'Save Changes');
+    return;
+  }
+
   try {
-    const features = document.getElementById('ep-features').value.split(',').map(s => s.trim()).filter(Boolean);
-    await api.updatePackage(id, {
-      name: document.getElementById('ep-name').value.trim(),
-      price: parseFloat(document.getElementById('ep-price').value),
-      duration: document.getElementById('ep-duration').value.trim(),
-      photos: parseInt(document.getElementById('ep-photos').value) || 0,
-      photographers: parseInt(document.getElementById('ep-photographers').value) || 1,
-      description: document.getElementById('ep-description').value.trim(),
-      features,
-      popular: document.getElementById('ep-popular').checked,
-    });
+    await api.updatePackage(id, formData);
     closeModal();
     showToast('Package updated successfully!');
     await loadPackages();
