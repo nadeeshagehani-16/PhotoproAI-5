@@ -1,5 +1,18 @@
 // Deposits Page – Full CRUD with Refund/Forfeit
 let _depositsCache = [];
+let _depCustomers = [];
+
+function _depTodayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function _showDepErrors(errEl, errors, btn, btnText) {
+  errEl.innerHTML = errors.map(e => '<div class="flex items-center gap-1"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i><span>' + e + '</span></div>').join('');
+  errEl.classList.remove('hidden');
+  lucide.createIcons();
+  if (btn) { btn.disabled = false; btn.textContent = btnText; }
+}
 
 async function renderDeposits() {
   const el = document.getElementById('page-content');
@@ -13,11 +26,13 @@ async function renderDeposits() {
 
 async function loadDeposits() {
   try {
-    const res = await api.getDeposits();
-    _depositsCache = res.data;
+    const [depRes, custRes] = await Promise.all([api.getDeposits(), api.getCustomers()]);
+    _depositsCache = depRes.data;
+    _depCustomers = custRes.data || [];
     renderDepositsTable(_depositsCache);
   } catch (err) {
     _depositsCache = MOCK.deposits || [];
+    _depCustomers = MOCK.clients || [];
     if (_depositsCache.length > 0) {
       renderDepositsTable(_depositsCache);
       const content = document.getElementById('dep-content');
@@ -52,7 +67,7 @@ function depositRow(d) {
     <td class="text-sm text-text-secondary max-w-[180px] truncate">${d.purpose||'—'}</td>
     <td><span class="px-2.5 py-1 rounded-lg text-xs font-semibold ${statusColor}">${d.status||'—'}</span></td>
     <td class="text-sm">${d.paymentMethod||'—'}</td>
-    <td class="text-sm text-text-secondary">${d.refundDate ? formatCurrency(d.refundAmount||0) + ' on ' + d.refundDate : '—'}</td>
+    <td class="text-sm text-text-secondary">${d.refundDate ? formatCurrency(d.refundAmount||0) + ' on ' + (d.refundDate).toString().split('T')[0] : '—'}</td>
     <td><div class="flex items-center gap-1">${actions}</div></td>
   </tr>`;
 }
@@ -112,14 +127,21 @@ async function handleRefundDeposit(id) {
 
 async function confirmRefundDeposit(id) {
   const btn = document.getElementById('refund-confirm');
+  const errEl = document.getElementById('refund-error');
+  errEl.classList.add('hidden');
   btn.disabled = true; btn.textContent = 'Processing...';
   try {
+    const d = _depositsCache.find(x => (x._id||x.id) == id);
     const amount = parseFloat(document.getElementById('refund-amount').value);
-    await api.updateDeposit(id, { status: 'Refunded', refundAmount: amount, refundDate: new Date().toISOString().split('T')[0] });
-    closeModal(); showToast('Deposit refunded!'); await loadDeposits();
+    const errors = [];
+    if (isNaN(amount)) errors.push('Refund amount must be a valid number.');
+    else if (amount < 0) errors.push('Refund amount cannot be negative.');
+    else if (d && amount > d.amount) errors.push('Refund amount cannot exceed the deposit amount.');
+    if (errors.length > 0) { _showDepErrors(errEl, errors, btn, 'Confirm Refund'); return; }
+    await api.updateDeposit(id, { status: 'Refunded', refundAmount: amount, refundDate: _depTodayStr() });
+    closeModal(); showToast('Deposit refunded successfully!'); await loadDeposits();
   } catch (err) {
-    document.getElementById('refund-error').textContent = err.message;
-    document.getElementById('refund-error').classList.remove('hidden');
+    errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Confirm Refund';
   }
 }
@@ -145,7 +167,7 @@ async function confirmForfeitDeposit(id) {
   btn.disabled = true; btn.textContent = 'Processing...';
   try {
     await api.updateDeposit(id, { status: 'Forfeited', refundAmount: 0 });
-    closeModal(); showToast('Deposit forfeited.'); await loadDeposits();
+    closeModal(); showToast('Deposit forfeited successfully!'); await loadDeposits();
   } catch (err) {
     document.getElementById('forfeit-error').textContent = err.message;
     document.getElementById('forfeit-error').classList.remove('hidden');
@@ -155,7 +177,7 @@ async function confirmForfeitDeposit(id) {
 
 // ── Add Deposit Modal ──
 function openAddDepositModal() {
-  const clients = MOCK.clients || [];
+  const clients = _depCustomers.length > 0 ? _depCustomers : (MOCK.clients || []);
   openModal(`<div class="p-6">
     <div class="flex items-center justify-between mb-6"><h2 class="text-xl font-bold">Record Deposit</h2><button onclick="closeModal()" class="btn-action"><i data-lucide="x" class="w-5 h-5"></i></button></div>
     <form id="add-dep-form" onsubmit="handleCreateDeposit(event)" class="space-y-4">
@@ -164,7 +186,7 @@ function openAddDepositModal() {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Amount (Rs.) *</label><input id="adp-amount" type="number" required min="0" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="5000" /></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Payment Method</label><select id="adp-method" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Credit Card</option><option>Bank Transfer</option><option>Cash</option></select></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Payment Method</label><select id="adp-method" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Credit Card</option><option>Debit Card</option><option>Bank Transfer</option><option>Cash</option><option>Online</option></select></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Transaction Ref</label><input id="adp-txn" type="text" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="TXN-DEP-xxx" /></div>
       </div>
       <div><label class="block text-sm font-medium text-text-secondary mb-1">Purpose</label><input id="adp-purpose" type="text" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="Equipment security deposit" /></div>
@@ -184,7 +206,7 @@ async function handleCreateDeposit(e) {
   const btn = document.getElementById('adp-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Recording...';
   try {
-    await api.createDeposit({
+    const formData = {
       customerId: document.getElementById('adp-client').value,
       amount: parseFloat(document.getElementById('adp-amount').value),
       paymentMethod: document.getElementById('adp-method').value,
@@ -192,8 +214,15 @@ async function handleCreateDeposit(e) {
       purpose: document.getElementById('adp-purpose').value.trim(),
       notes: document.getElementById('adp-notes').value.trim(),
       status: 'Held',
-    });
-    closeModal(); showToast('Deposit recorded!'); await loadDeposits();
+    };
+    const errors = [];
+    if (!formData.customerId) errors.push('Please select a client.');
+    if (isNaN(formData.amount)) errors.push('Amount is required and must be a valid number.');
+    else if (formData.amount < 0) errors.push('Amount cannot be negative. Please enter 0 or a positive value.');
+    if (!formData.purpose) errors.push('Purpose is required.');
+    if (errors.length > 0) { _showDepErrors(errEl, errors, btn, 'Record Deposit'); return; }
+    await api.createDeposit(formData);
+    closeModal(); showToast('Deposit recorded successfully!'); await loadDeposits();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Record Deposit';
@@ -204,7 +233,7 @@ async function handleCreateDeposit(e) {
 function openEditDepositModal(id) {
   const d = _depositsCache.find(x => (x._id||x.id) == id);
   if (!d) return;
-  const clients = MOCK.clients || [];
+  const clients = _depCustomers.length > 0 ? _depCustomers : (MOCK.clients || []);
   const custId = d.customerId?._id || d.customerId || '';
   const esc = (s) => (s||'').replace(/"/g, '&quot;');
   openModal(`<div class="p-6">
@@ -231,13 +260,20 @@ async function handleUpdateDeposit(e, id) {
   const btn = document.getElementById('edp-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Saving...';
   try {
-    await api.updateDeposit(id, {
+    const formData = {
       customerId: document.getElementById('edp-client').value,
       amount: parseFloat(document.getElementById('edp-amount').value),
       purpose: document.getElementById('edp-purpose').value.trim(),
       notes: document.getElementById('edp-notes').value.trim(),
-    });
-    closeModal(); showToast('Deposit updated!'); await loadDeposits();
+    };
+    const errors = [];
+    if (!formData.customerId) errors.push('Please select a client.');
+    if (isNaN(formData.amount)) errors.push('Amount is required and must be a valid number.');
+    else if (formData.amount < 0) errors.push('Amount cannot be negative. Please enter 0 or a positive value.');
+    if (!formData.purpose) errors.push('Purpose is required.');
+    if (errors.length > 0) { _showDepErrors(errEl, errors, btn, 'Save Changes'); return; }
+    await api.updateDeposit(id, formData);
+    closeModal(); showToast('Deposit updated successfully!'); await loadDeposits();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Save Changes';

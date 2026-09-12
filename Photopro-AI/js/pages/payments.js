@@ -1,5 +1,45 @@
 // Payments Page – Full CRUD
 let _paymentsCache = [];
+let _payCustomers = [];
+
+// ── Validation Helpers ──
+function _payTodayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function _validatePaymentForm(data) {
+  const errors = [];
+  const today = _payTodayStr();
+
+  // Required fields
+  if (!data.customerId) errors.push('Please select a client.');
+  if (data.amount === undefined || data.amount === null || isNaN(data.amount)) {
+    errors.push('Amount is required and must be a valid number.');
+  }
+  if (!data.method) errors.push('Please select a payment method.');
+  if (!data.type) errors.push('Please select a payment type.');
+  if (!data.date) errors.push('Please select a payment date.');
+
+  // Date must be today or future
+  if (data.date && data.date < today) {
+    errors.push('Date cannot be in the past. Please select today or a future date.');
+  }
+
+  // Amount cannot be negative
+  if (!isNaN(data.amount) && data.amount < 0) {
+    errors.push('Amount cannot be negative. Please enter 0 or a positive value.');
+  }
+
+  return errors;
+}
+
+function _showPayErrors(errEl, errors, btn, btnText) {
+  errEl.innerHTML = errors.map(e => '<div class="flex items-center gap-1"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i><span>' + e + '</span></div>').join('');
+  errEl.classList.remove('hidden');
+  lucide.createIcons();
+  btn.disabled = false; btn.textContent = btnText;
+}
 
 async function renderInvoices() {
   const el = document.getElementById('page-content');
@@ -13,11 +53,13 @@ async function renderInvoices() {
 
 async function loadPayments() {
   try {
-    const res = await api.getPayments();
-    _paymentsCache = res.data;
+    const [payRes, custRes] = await Promise.all([api.getPayments(), api.getCustomers()]);
+    _paymentsCache = payRes.data;
+    _payCustomers = custRes.data || [];
     renderPaymentsTable(_paymentsCache);
   } catch (err) {
     _paymentsCache = MOCK.payments || [];
+    _payCustomers = MOCK.clients || [];
     if (_paymentsCache.length > 0) {
       renderPaymentsTable(_paymentsCache);
       const content = document.getElementById('pay-content');
@@ -48,7 +90,7 @@ function paymentRow(p) {
     <td><span class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700">${p.method||'—'}</span></td>
     <td><span class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700">${p.type||'—'}</span></td>
     <td><span class="px-2.5 py-1 rounded-lg text-xs font-semibold ${statusColor}">${p.status||'—'}</span></td>
-    <td class="text-sm text-text-secondary">${p.date||'—'}</td>
+    <td class="text-sm text-text-secondary">${(p.date||'').toString().split('T')[0] || '—'}</td>
     <td><div class="flex items-center gap-1">
       <button onclick="openEditPaymentModal('${pid}')" class="btn-action" title="Edit"><i data-lucide="pencil" class="w-4 h-4"></i></button>
       <button onclick="confirmDeletePayment('${pid}')" class="btn-action" title="Delete"><i data-lucide="trash-2" class="w-4 h-4 text-error"></i></button>
@@ -108,7 +150,7 @@ function filterPaySearch(q) {
 
 // ── Add Payment Modal ──
 function openAddPaymentModal() {
-  const clients = MOCK.clients || [];
+  const clients = _payCustomers.length > 0 ? _payCustomers : (MOCK.clients || []);
   openModal(`<div class="p-6">
     <div class="flex items-center justify-between mb-6"><h2 class="text-xl font-bold">Record Payment</h2><button onclick="closeModal()" class="btn-action"><i data-lucide="x" class="w-5 h-5"></i></button></div>
     <form id="add-pay-form" onsubmit="handleCreatePayment(event)" class="space-y-4">
@@ -117,15 +159,15 @@ function openAddPaymentModal() {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Amount (Rs.) *</label><input id="apy-amount" type="number" required min="0" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="150000" /></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Method *</label><select id="apy-method" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Credit Card</option><option>Bank Transfer</option><option>Cash</option><option>Online Payment</option></select></div>
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Type</label><select id="apy-type" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Booking</option><option>Rental</option><option>Deposit</option><option>Add-on</option></select></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Method *</label><select id="apy-method" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Credit Card</option><option>Debit Card</option><option>Bank Transfer</option><option>Cash</option><option>Online</option></select></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Type *</label><select id="apy-type" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Booking</option><option>Rental</option><option>Studio</option><option>Package</option><option>Other</option></select></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Reference ID</label><input id="apy-ref" type="text" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="INV-011" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Transaction Ref</label><input id="apy-txn" type="text" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="TXN-2026-xxx" /></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="apy-date" type="date" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="apy-date" type="date" required min="${_payTodayStr()}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Status</label><select id="apy-status" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Completed</option><option>Pending</option><option>Failed</option></select></div>
       </div>
       <div><label class="block text-sm font-medium text-text-secondary mb-1">Notes</label><textarea id="apy-notes" rows="2" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none resize-none" placeholder="Payment notes..."></textarea></div>
@@ -144,7 +186,7 @@ async function handleCreatePayment(e) {
   const btn = document.getElementById('apy-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Recording...';
   try {
-    await api.createPayment({
+    const formData = {
       customerId: document.getElementById('apy-client').value,
       amount: parseFloat(document.getElementById('apy-amount').value),
       method: document.getElementById('apy-method').value,
@@ -154,8 +196,11 @@ async function handleCreatePayment(e) {
       date: document.getElementById('apy-date').value,
       status: document.getElementById('apy-status').value,
       notes: document.getElementById('apy-notes').value.trim(),
-    });
-    closeModal(); showToast('Payment recorded!'); await loadPayments();
+    };
+    const errors = _validatePaymentForm(formData);
+    if (errors.length > 0) { _showPayErrors(errEl, errors, btn, 'Record Payment'); return; }
+    await api.createPayment(formData);
+    closeModal(); showToast('Payment recorded successfully!'); await loadPayments();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Record Payment';
@@ -166,7 +211,7 @@ async function handleCreatePayment(e) {
 function openEditPaymentModal(id) {
   const p = _paymentsCache.find(x => (x._id||x.id) == id);
   if (!p) return;
-  const clients = MOCK.clients || [];
+  const clients = _payCustomers.length > 0 ? _payCustomers : (MOCK.clients || []);
   const custId = p.customerId?._id || p.customerId || '';
   const esc = (s) => (s||'').replace(/"/g, '&quot;');
   openModal(`<div class="p-6">
@@ -178,10 +223,10 @@ function openEditPaymentModal(id) {
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Method</label><select id="epy-method" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
-          ${['Credit Card','Bank Transfer','Cash','Online Payment'].map(m=>`<option ${p.method===m?'selected':''}>${m}</option>`).join('')}
+          ${['Credit Card','Debit Card','Bank Transfer','Cash','Online'].map(m=>`<option ${p.method===m?'selected':''}>${m}</option>`).join('')}
         </select></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Status</label><select id="epy-status" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
-          ${['Completed','Pending','Failed'].map(s=>`<option ${p.status===s?'selected':''}>${s}</option>`).join('')}
+          ${['Pending','Completed','Failed','Refunded'].map(s=>`<option ${p.status===s?'selected':''}>${s}</option>`).join('')}
         </select></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
@@ -204,7 +249,7 @@ async function handleUpdatePayment(e, id) {
   const btn = document.getElementById('epy-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Saving...';
   try {
-    await api.updatePayment(id, {
+    const formData = {
       customerId: document.getElementById('epy-client').value,
       amount: parseFloat(document.getElementById('epy-amount').value),
       method: document.getElementById('epy-method').value,
@@ -212,8 +257,14 @@ async function handleUpdatePayment(e, id) {
       referenceId: document.getElementById('epy-ref').value.trim(),
       transactionRef: document.getElementById('epy-txn').value.trim(),
       notes: document.getElementById('epy-notes').value.trim(),
-    });
-    closeModal(); showToast('Payment updated!'); await loadPayments();
+    };
+    const errors = [];
+    if (!formData.customerId) errors.push('Please select a client.');
+    if (isNaN(formData.amount)) errors.push('Amount is required and must be a valid number.');
+    else if (formData.amount < 0) errors.push('Amount cannot be negative. Please enter 0 or a positive value.');
+    if (errors.length > 0) { _showPayErrors(errEl, errors, btn, 'Save Changes'); return; }
+    await api.updatePayment(id, formData);
+    closeModal(); showToast('Payment updated successfully!'); await loadPayments();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Save Changes';
@@ -239,7 +290,7 @@ async function handleDeletePayment(id) {
   btn.disabled = true; btn.textContent = 'Deleting...';
   try {
     await api.deletePayment(id);
-    closeModal(); showToast('Payment deleted!'); await loadPayments();
+    closeModal(); showToast('Payment deleted successfully!'); await loadPayments();
   } catch (err) {
     document.getElementById('dpy-error').textContent = err.message;
     document.getElementById('dpy-error').classList.remove('hidden');
