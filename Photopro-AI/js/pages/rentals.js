@@ -3,6 +3,57 @@ let _rentalsCache = [];
 let _rentalCustomers = [];
 let _rentalEquipment = [];
 
+// Local (not UTC) yyyy-mm-dd for date inputs and validation
+function _rentalTodayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function _rentalDateInputVal(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return '';
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function _validateRentalForm(data, isEdit = false) {
+  const errors = [];
+  const today = _rentalTodayStr();
+  if (!data.customerId) errors.push('Please select a customer.');
+  if (!data.equipmentId) errors.push('Please select equipment.');
+  if (!data.startDate) errors.push('Start date is required.');
+  else if (data.startDate < today) errors.push('Start date cannot be in the past. Please choose today or a future date.');
+  if (!data.endDate) errors.push('End date is required.');
+  else if (data.endDate < today) errors.push('End date cannot be in the past. Please choose today or a future date.');
+  if (data.startDate && data.endDate && data.endDate <= data.startDate) errors.push('End date must be after the start date.');
+  if (isEdit) {
+    if (data.totalCost === undefined || data.totalCost === null || isNaN(data.totalCost)) {
+      errors.push('Total cost is required and must be a valid number.');
+    } else if (data.totalCost < 0) {
+      errors.push('Total cost cannot be negative.');
+    }
+  }
+  if (data.securityDeposit !== undefined && data.securityDeposit !== null && !isNaN(data.securityDeposit) && data.securityDeposit < 0) {
+    errors.push('Security deposit cannot be negative.');
+  }
+  if (data.notes && data.notes.length > 1000) errors.push('Notes cannot exceed 1000 characters.');
+  return errors;
+}
+
+function _showRentalErrors(errEl, errors, btn, label) {
+  errEl.innerHTML = errors.map(e => `<div class="flex items-start gap-1.5"><i data-lucide="alert-circle" class="w-4 h-4 mt-0.5 shrink-0"></i><span>${e}</span></div>`).join('');
+  errEl.classList.remove('hidden');
+  lucide.createIcons();
+  btn.disabled = false;
+  btn.textContent = label;
+}
+
 async function renderRentals() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -140,8 +191,8 @@ function openAddRentalModal() {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Equipment *</label><select id="ar-equipment" required onchange="calculateRentalCost()" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option value="">Select equipment</option>${equipmentOptions}</select></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Date *</label><input id="ar-start" type="date" required onchange="calculateRentalCost()" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">End Date *</label><input id="ar-end" type="date" required onchange="calculateRentalCost()" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Date *</label><input id="ar-start" type="date" required min="${_rentalTodayStr()}" onchange="calculateRentalCost()" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">End Date *</label><input id="ar-end" type="date" required min="${_rentalTodayStr()}" onchange="calculateRentalCost()" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
       </div>
       <div class="bg-surface rounded-xl p-3 text-sm"><span class="text-text-secondary">Estimated cost: </span><span id="ar-cost-display" class="font-semibold">—</span></div>
       <div class="grid grid-cols-2 gap-4">
@@ -168,17 +219,14 @@ async function handleCreateRental(e) {
   const equipmentId = document.getElementById('ar-equipment').value;
   const startDate = document.getElementById('ar-start').value;
   const endDate = document.getElementById('ar-end').value;
-
-  // Client-side validation
-  if (new Date(endDate) <= new Date(startDate)) {
-    errEl.textContent = 'End date must be after start date';
-    errEl.classList.remove('hidden');
-    return;
-  }
+  const securityDeposit = parseFloat(document.getElementById('ar-deposit').value) || 0;
 
   const equipment = _rentalEquipment.find(x => x._id === equipmentId);
   const days = Math.ceil((new Date(endDate) - new Date(startDate)) / 86400000);
   const totalCost = days * (equipment ? equipment.pricePerDay : 0);
+
+  const errors = _validateRentalForm({ customerId, equipmentId, startDate, endDate, securityDeposit, notes: document.getElementById('ar-notes').value.trim() });
+  if (errors.length > 0) { _showRentalErrors(errEl, errors, btn, 'Create Rental'); return; }
 
   btn.disabled = true;
   btn.textContent = 'Creating...';
@@ -189,7 +237,7 @@ async function handleCreateRental(e) {
       startDate,
       endDate,
       totalCost,
-      securityDeposit: parseFloat(document.getElementById('ar-deposit').value) || 0,
+      securityDeposit,
       paymentStatus: document.getElementById('ar-payment').value,
       notes: document.getElementById('ar-notes').value.trim(),
       status: 'Pending',
@@ -209,8 +257,9 @@ async function handleCreateRental(e) {
 function openEditRentalModal(id) {
   const r = _rentalsCache.find(x => x._id === id);
   if (!r) return;
-  const startVal = r.startDate ? new Date(r.startDate).toISOString().split('T')[0] : '';
-  const endVal = r.endDate ? new Date(r.endDate).toISOString().split('T')[0] : '';
+  const startVal = _rentalDateInputVal(r.startDate);
+  const endVal = _rentalDateInputVal(r.endDate);
+  const todayStr = _rentalTodayStr();
   const customerIdVal = r.customerId && typeof r.customerId === 'object' ? r.customerId._id : r.customerId;
   const equipmentIdVal = r.equipmentId && typeof r.equipmentId === 'object' ? r.equipmentId._id : r.equipmentId;
   const customerOptions = _rentalCustomers.map(c => `<option value="${c._id}" ${c._id === customerIdVal ? 'selected' : ''}>${c.name}</option>`).join('');
@@ -223,8 +272,8 @@ function openEditRentalModal(id) {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Equipment *</label><select id="er-equipment" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">${equipmentOptions}</select></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Date *</label><input id="er-start" type="date" required value="${startVal}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">End Date *</label><input id="er-end" type="date" required value="${endVal}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Date *</label><input id="er-start" type="date" required min="${todayStr}" value="${startVal}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">End Date *</label><input id="er-end" type="date" required min="${todayStr}" value="${endVal}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
       </div>
       <div class="grid grid-cols-3 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Total Cost *</label><input id="er-cost" type="number" required min="0" step="0.01" value="${r.totalCost}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
@@ -252,28 +301,25 @@ async function handleUpdateRental(e, id) {
   const btn = document.getElementById('er-submit');
   errEl.classList.add('hidden');
 
-  const startDate = document.getElementById('er-start').value;
-  const endDate = document.getElementById('er-end').value;
-  if (new Date(endDate) <= new Date(startDate)) {
-    errEl.textContent = 'End date must be after start date';
-    errEl.classList.remove('hidden');
-    return;
-  }
+  const data = {
+    customerId: document.getElementById('er-customer').value,
+    equipmentId: document.getElementById('er-equipment').value,
+    startDate: document.getElementById('er-start').value,
+    endDate: document.getElementById('er-end').value,
+    totalCost: parseFloat(document.getElementById('er-cost').value),
+    securityDeposit: parseFloat(document.getElementById('er-deposit').value) || 0,
+    status: document.getElementById('er-status').value,
+    paymentStatus: document.getElementById('er-payment').value,
+    notes: document.getElementById('er-notes').value.trim(),
+  };
+
+  const errors = _validateRentalForm(data, true);
+  if (errors.length > 0) { _showRentalErrors(errEl, errors, btn, 'Save Changes'); return; }
 
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
-    await api.updateRental(id, {
-      customerId: document.getElementById('er-customer').value,
-      equipmentId: document.getElementById('er-equipment').value,
-      startDate,
-      endDate,
-      totalCost: parseFloat(document.getElementById('er-cost').value),
-      securityDeposit: parseFloat(document.getElementById('er-deposit').value) || 0,
-      status: document.getElementById('er-status').value,
-      paymentStatus: document.getElementById('er-payment').value,
-      notes: document.getElementById('er-notes').value.trim(),
-    });
+    await api.updateRental(id, data);
     closeModal();
     showToast('Rental updated successfully!');
     await loadRentals();

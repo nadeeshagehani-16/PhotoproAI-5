@@ -1,6 +1,32 @@
 // Equipment Management Page
 let _equipmentCache = [];
 
+function _validateEquipmentForm(data) {
+  const errors = [];
+  if (!data.name || data.name.trim().length < 2) errors.push('Name is required (min 2 characters).');
+  else if (data.name.trim().length > 100) errors.push('Name cannot exceed 100 characters.');
+  if (!data.category) errors.push('Category is required.');
+  if (!data.brand || data.brand.trim().length < 2) errors.push('Brand is required (min 2 characters).');
+  if (!data.model) errors.push('Model is required.');
+  if (data.pricePerDay === undefined || data.pricePerDay === null || isNaN(data.pricePerDay)) {
+    errors.push('Price per day is required and must be a valid number.');
+  } else if (data.pricePerDay < 0) {
+    errors.push('Price per day cannot be negative.');
+  }
+  if (data.serialNumber && data.serialNumber.length > 50) errors.push('Serial number cannot exceed 50 characters.');
+  if (data.description && data.description.length > 500) errors.push('Description cannot exceed 500 characters.');
+  if (data.specifications && data.specifications.length > 200) errors.push('Specifications cannot exceed 200 characters.');
+  return errors;
+}
+
+function _showEquipmentErrors(errEl, errors, btn, label) {
+  errEl.innerHTML = errors.map(e => `<div class="flex items-start gap-1.5"><i data-lucide="alert-circle" class="w-4 h-4 mt-0.5 shrink-0"></i><span>${e}</span></div>`).join('');
+  errEl.classList.remove('hidden');
+  lucide.createIcons();
+  btn.disabled = false;
+  btn.textContent = label;
+}
+
 async function renderEquipment() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -132,21 +158,24 @@ async function handleCreateEquipment(e) {
   const errEl = document.getElementById('ae-error');
   const btn = document.getElementById('ae-submit');
   errEl.classList.add('hidden');
+  const data = {
+    name: document.getElementById('ae-name').value.trim(),
+    category: document.getElementById('ae-category').value,
+    brand: document.getElementById('ae-brand').value.trim(),
+    model: document.getElementById('ae-model').value.trim(),
+    pricePerDay: parseFloat(document.getElementById('ae-price').value),
+    serialNumber: document.getElementById('ae-serial').value.trim(),
+    condition: document.getElementById('ae-condition').value,
+    availability: document.getElementById('ae-availability').value,
+    description: document.getElementById('ae-description').value.trim(),
+    specifications: document.getElementById('ae-specs').value.trim(),
+  };
+  const errors = _validateEquipmentForm(data);
+  if (errors.length > 0) { _showEquipmentErrors(errEl, errors, btn, 'Add Equipment'); return; }
   btn.disabled = true;
   btn.textContent = 'Creating...';
   try {
-    await api.createEquipment({
-      name: document.getElementById('ae-name').value.trim(),
-      category: document.getElementById('ae-category').value,
-      brand: document.getElementById('ae-brand').value.trim(),
-      model: document.getElementById('ae-model').value.trim(),
-      pricePerDay: parseFloat(document.getElementById('ae-price').value),
-      serialNumber: document.getElementById('ae-serial').value.trim(),
-      condition: document.getElementById('ae-condition').value,
-      availability: document.getElementById('ae-availability').value,
-      description: document.getElementById('ae-description').value.trim(),
-      specifications: document.getElementById('ae-specs').value.trim(),
-    });
+    await api.createEquipment(data);
     closeModal();
     showToast('Equipment added successfully!');
     await loadEquipment();
@@ -204,21 +233,24 @@ async function handleUpdateEquipment(e, id) {
   const errEl = document.getElementById('ee-error');
   const btn = document.getElementById('ee-submit');
   errEl.classList.add('hidden');
+  const data = {
+    name: document.getElementById('ee-name').value.trim(),
+    category: document.getElementById('ee-category').value,
+    brand: document.getElementById('ee-brand').value.trim(),
+    model: document.getElementById('ee-model').value.trim(),
+    pricePerDay: parseFloat(document.getElementById('ee-price').value),
+    serialNumber: document.getElementById('ee-serial').value.trim(),
+    condition: document.getElementById('ee-condition').value,
+    availability: document.getElementById('ee-availability').value,
+    description: document.getElementById('ee-description').value.trim(),
+    specifications: document.getElementById('ee-specs').value.trim(),
+  };
+  const errors = _validateEquipmentForm(data);
+  if (errors.length > 0) { _showEquipmentErrors(errEl, errors, btn, 'Save Changes'); return; }
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
-    await api.updateEquipment(id, {
-      name: document.getElementById('ee-name').value.trim(),
-      category: document.getElementById('ee-category').value,
-      brand: document.getElementById('ee-brand').value.trim(),
-      model: document.getElementById('ee-model').value.trim(),
-      pricePerDay: parseFloat(document.getElementById('ee-price').value),
-      serialNumber: document.getElementById('ee-serial').value.trim(),
-      condition: document.getElementById('ee-condition').value,
-      availability: document.getElementById('ee-availability').value,
-      description: document.getElementById('ee-description').value.trim(),
-      specifications: document.getElementById('ee-specs').value.trim(),
-    });
+    await api.updateEquipment(id, data);
     closeModal();
     showToast('Equipment updated successfully!');
     await loadEquipment();
