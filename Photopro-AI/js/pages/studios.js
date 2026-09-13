@@ -1,6 +1,37 @@
 // Studios Page – Full CRUD
 let _studiosCache = [];
 
+const _STUDIO_CATEGORIES = ['Available', 'Booked', 'Under Maintenance'];
+
+function _validateStudioForm(data, isUpdate = false) {
+  const errors = [];
+  if (!data.name || data.name.trim().length < 2) errors.push('Studio name is required (min 2 characters).');
+  else if (data.name.trim().length > 100) errors.push('Studio name cannot exceed 100 characters.');
+
+  if (!data.location || data.location.trim().length < 2) errors.push('Location is required (min 2 characters).');
+  else if (data.location.trim().length > 200) errors.push('Location cannot exceed 200 characters.');
+
+  if (data.capacity < 1 || isNaN(data.capacity)) errors.push('Capacity must be at least 1.');
+
+  if (data.pricePerHour === undefined || data.pricePerHour === null || isNaN(data.pricePerHour)) {
+    errors.push('Price per hour is required and must be a valid number.');
+  } else if (data.pricePerHour < 0) {
+    errors.push('Price per hour cannot be negative.');
+  }
+
+  if (data.description && data.description.length > 500) errors.push('Description cannot exceed 500 characters.');
+  if (!_STUDIO_CATEGORIES.includes(data.availability)) errors.push('Invalid availability option.');
+  return errors;
+}
+
+function _showStudioErrors(errEl, errors, btn, label) {
+  errEl.innerHTML = errors.map(e => `<div class="flex items-start gap-1.5"><i data-lucide="alert-circle" class="w-4 h-4 mt-0.5 shrink-0"></i><span>${e}</span></div>`).join('');
+  errEl.classList.remove('hidden');
+  lucide.createIcons();
+  btn.disabled = false;
+  btn.textContent = label;
+}
+
 async function renderStudios() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -106,20 +137,23 @@ async function handleCreateStudio(e) {
   const errEl = document.getElementById('ast-error');
   const btn = document.getElementById('ast-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Creating...';
+  const data = {
+    name: document.getElementById('ast-name').value.trim(),
+    location: document.getElementById('ast-location').value.trim(),
+    capacity: parseInt(document.getElementById('ast-capacity').value) || 10,
+    pricePerHour: parseFloat(document.getElementById('ast-price').value),
+    description: document.getElementById('ast-description').value.trim(),
+    availability: document.getElementById('ast-availability').value,
+    image: document.getElementById('ast-image').value.trim(),
+    isActive: document.getElementById('ast-active').checked,
+  };
+  const errors = _validateStudioForm(data);
+  if (errors.length > 0) { _showStudioErrors(errEl, errors, btn, 'Add Studio'); return; }
   try {
     const amenities = document.getElementById('ast-amenities').value.split(',').map(s=>s.trim()).filter(Boolean);
-    await api.createStudio({
-      name: document.getElementById('ast-name').value.trim(),
-      location: document.getElementById('ast-location').value.trim(),
-      capacity: parseInt(document.getElementById('ast-capacity').value) || 10,
-      pricePerHour: parseFloat(document.getElementById('ast-price').value),
-      description: document.getElementById('ast-description').value.trim(),
-      amenities,
-      image: document.getElementById('ast-image').value.trim(),
-      availability: document.getElementById('ast-availability').value,
-      isActive: document.getElementById('ast-active').checked,
-    });
-    closeModal(); showToast('Studio added!'); await loadStudios();
+    data.amenities = amenities;
+    await api.createStudio(data);
+    closeModal(); showToast('Studio added successfully!'); await loadStudios();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Add Studio';
@@ -165,20 +199,23 @@ async function handleUpdateStudio(e, id) {
   const errEl = document.getElementById('est-error');
   const btn = document.getElementById('est-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Saving...';
+  const data = {
+    name: document.getElementById('est-name').value.trim(),
+    location: document.getElementById('est-location').value.trim(),
+    capacity: parseInt(document.getElementById('est-capacity').value) || 10,
+    pricePerHour: parseFloat(document.getElementById('est-price').value),
+    description: document.getElementById('est-description').value.trim(),
+    availability: document.getElementById('est-availability').value,
+    image: document.getElementById('est-image').value.trim(),
+    isActive: document.getElementById('est-active').checked,
+  };
+  const errors = _validateStudioForm(data, true);
+  if (errors.length > 0) { _showStudioErrors(errEl, errors, btn, 'Save Changes'); return; }
   try {
     const amenities = document.getElementById('est-amenities').value.split(',').map(s=>s.trim()).filter(Boolean);
-    await api.updateStudio(id, {
-      name: document.getElementById('est-name').value.trim(),
-      location: document.getElementById('est-location').value.trim(),
-      capacity: parseInt(document.getElementById('est-capacity').value) || 10,
-      pricePerHour: parseFloat(document.getElementById('est-price').value),
-      description: document.getElementById('est-description').value.trim(),
-      amenities,
-      image: document.getElementById('est-image').value.trim(),
-      availability: document.getElementById('est-availability').value,
-      isActive: document.getElementById('est-active').checked,
-    });
-    closeModal(); showToast('Studio updated!'); await loadStudios();
+    data.amenities = amenities;
+    await api.updateStudio(id, data);
+    closeModal(); showToast('Studio updated successfully!'); await loadStudios();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Save Changes';

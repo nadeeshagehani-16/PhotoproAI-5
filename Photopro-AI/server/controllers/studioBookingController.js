@@ -42,9 +42,10 @@ function _validateBookingData(body, isUpdate = false) {
     errors.push('End time must be after start time.');
   }
 
-  // Date must be today or future (compare date string yyyy-MM-dd)
+  // Date must be today or future (compare date string yyyy-MM-dd using local date)
   if (date) {
-    const dateStr = new Date(date).toISOString().split('T')[0];
+    const d = new Date(date);
+    const dateStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
     const today = new Date();
     const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
     if (dateStr < todayStr) {
