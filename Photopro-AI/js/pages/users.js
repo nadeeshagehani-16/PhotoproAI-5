@@ -1,6 +1,32 @@
 // User Management Page
 let _usersCache = [];
 
+const _USER_EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const _USER_PHONE_RE = /^\+?[\d\s\-().]{7,20}$/;
+
+function _validateUserForm(data) {
+  const errors = [];
+  if (!data.name || data.name.trim().length < 2) errors.push('Full name is required (min 2 characters).');
+  if (!data.email) errors.push('Email is required.');
+  else if (!_USER_EMAIL_RE.test(data.email.trim())) errors.push('Email format is invalid. Use a valid address like name@example.com (characters such as # or $ are not allowed).');
+  if (data.password !== undefined) {
+    if (!data.password) errors.push('Password is required.');
+    else if (data.password.length < 6) errors.push('Password must be at least 6 characters.');
+  }
+  if (data.phone && !_USER_PHONE_RE.test(data.phone.trim())) errors.push('Phone must be 7-15 digits, optionally starting with +.');
+  if (data.name && data.name.trim().length > 100) errors.push('Name cannot exceed 100 characters.');
+  if (data.address && data.address.trim().length > 200) errors.push('Address cannot exceed 200 characters.');
+  return errors;
+}
+
+function _showUserErrors(errEl, errors, btn, label) {
+  errEl.innerHTML = errors.map(e => `<div class="flex items-start gap-1.5"><i data-lucide="alert-circle" class="w-4 h-4 mt-0.5 shrink-0"></i><span>${e}</span></div>`).join('');
+  errEl.classList.remove('hidden');
+  lucide.createIcons();
+  btn.disabled = false;
+  btn.textContent = label;
+}
+
 async function renderUsers() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -110,17 +136,20 @@ async function handleCreateUser(e) {
   const errEl = document.getElementById('au-error');
   const btn = document.getElementById('au-submit');
   errEl.classList.add('hidden');
+  const data = {
+    name: document.getElementById('au-name').value.trim(),
+    email: document.getElementById('au-email').value.trim(),
+    password: document.getElementById('au-password').value,
+    phone: document.getElementById('au-phone').value.trim(),
+    role: document.getElementById('au-role').value,
+    address: document.getElementById('au-address').value.trim(),
+  };
+  const errors = _validateUserForm(data);
+  if (errors.length > 0) { _showUserErrors(errEl, errors, btn, 'Add User'); return; }
   btn.disabled = true;
   btn.textContent = 'Creating...';
   try {
-    await api.createUser({
-      name: document.getElementById('au-name').value.trim(),
-      email: document.getElementById('au-email').value.trim(),
-      password: document.getElementById('au-password').value,
-      phone: document.getElementById('au-phone').value.trim(),
-      role: document.getElementById('au-role').value,
-      address: document.getElementById('au-address').value.trim(),
-    });
+    await api.createUser(data);
     closeModal();
     showToast('User created successfully!');
     await loadUsers();
@@ -172,17 +201,20 @@ async function handleUpdateUser(e, id) {
   const errEl = document.getElementById('eu-error');
   const btn = document.getElementById('eu-submit');
   errEl.classList.add('hidden');
+  const data = {
+    name: document.getElementById('eu-name').value.trim(),
+    email: document.getElementById('eu-email').value.trim(),
+    phone: document.getElementById('eu-phone').value.trim(),
+    role: document.getElementById('eu-role').value,
+    address: document.getElementById('eu-address').value.trim(),
+    isActive: document.getElementById('eu-active').value === 'true',
+  };
+  const errors = _validateUserForm(data);
+  if (errors.length > 0) { _showUserErrors(errEl, errors, btn, 'Save Changes'); return; }
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
-    await api.updateUser(id, {
-      name: document.getElementById('eu-name').value.trim(),
-      email: document.getElementById('eu-email').value.trim(),
-      phone: document.getElementById('eu-phone').value.trim(),
-      role: document.getElementById('eu-role').value,
-      address: document.getElementById('eu-address').value.trim(),
-      isActive: document.getElementById('eu-active').value === 'true',
-    });
+    await api.updateUser(id, data);
     closeModal();
     showToast('User updated successfully!');
     await loadUsers();

@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
 // Generate JWT token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -12,7 +14,18 @@ exports.register = async (req, res, next) => {
   try {
     const { name, email, password, role, phone, address } = req.body;
 
-    const userExists = await User.findOne({ email });
+    const errors = [];
+    if (!name || !String(name).trim()) errors.push('Name is required.');
+    else if (String(name).trim().length < 2 || String(name).trim().length > 100) errors.push('Name must be between 2 and 100 characters.');
+    if (!email || !String(email).trim()) errors.push('Email is required.');
+    else if (!EMAIL_RE.test(String(email).trim().toLowerCase())) errors.push('Email format is invalid. Use a valid address like name@example.com (characters such as # or $ are not allowed).');
+    if (!password) errors.push('Password is required.');
+    else if (String(password).length < 6) errors.push('Password must be at least 6 characters.');
+    if (errors.length > 0) {
+      return res.status(400).json({ success: false, message: errors.join(' ') });
+    }
+
+    const userExists = await User.findOne({ email: String(email).trim().toLowerCase() });
     if (userExists) {
       return res.status(400).json({ success: false, message: 'User already exists with this email' });
     }
@@ -37,6 +50,9 @@ exports.login = async (req, res, next) => {
 
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Email and password are required' });
+    }
+    if (!EMAIL_RE.test(String(email).trim().toLowerCase())) {
+      return res.status(400).json({ success: false, message: 'Email format is invalid. Use a valid address like name@example.com (characters such as # or $ are not allowed).' });
     }
 
     const user = await User.findOne({ email });
