@@ -70,14 +70,14 @@ function _validateRentalData(body, isUpdate = false) {
 
 exports.getRentals = async (req, res, next) => {
   try {
-    const rentals = await Rental.find().populate('customerId', 'name email').populate('equipmentId', 'name category brand');
+    const rentals = await Rental.find().populate('customerId', 'name email address avatar').populate('equipmentId', 'name category brand');
     res.json({ success: true, data: rentals });
   } catch (error) { next(error); }
 };
 
 exports.getRental = async (req, res, next) => {
   try {
-    const rental = await Rental.findById(req.params.id).populate('customerId', 'name email').populate('equipmentId', 'name category brand');
+    const rental = await Rental.findById(req.params.id).populate('customerId', 'name email address avatar').populate('equipmentId', 'name category brand');
     if (!rental) return res.status(404).json({ success: false, message: 'Rental not found' });
     res.json({ success: true, data: rental });
   } catch (error) { next(error); }

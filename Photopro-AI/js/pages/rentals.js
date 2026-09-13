@@ -54,6 +54,46 @@ function _showRentalErrors(errEl, errors, btn, label) {
   btn.textContent = label;
 }
 
+// Google Maps embed URL for a customer's address (no API key required)
+function _rentalMapUrl(address) {
+  const q = encodeURIComponent(address || 'Colombo, Sri Lanka');
+  return `https://maps.google.com/maps?q=${q}&output=embed`;
+}
+
+// ── Customer Location Modal (Google Map) ──
+function openRentalLocationModal(id) {
+  const r = _rentalsCache.find(x => x._id === id);
+  if (!r) return;
+  const c = r.customerId && typeof r.customerId === 'object' ? r.customerId : null;
+  const customerName = c && c.name ? c.name : 'Customer';
+  const email = c && c.email ? c.email : '';
+  const address = c && c.address ? c.address : '';
+  const avatar = c && c.avatar ? c.avatar : `https://ui-avatars.com/api/?name=${encodeURIComponent(customerName)}&background=d30505&color=fff&size=48`;
+  const equipment = r.equipmentId && typeof r.equipmentId === 'object' ? r.equipmentId.name : 'Equipment';
+  openModal(`<div class="p-6">
+    <div class="flex items-center justify-between mb-6"><h2 class="text-xl font-bold">Customer Location</h2><button onclick="closeModal()" class="btn-action"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+    <div class="space-y-4">
+      <div class="flex items-center gap-3">
+        <img src="${avatar}" class="w-12 h-12 rounded-full object-cover" alt="" />
+        <div class="min-w-0">
+          <p class="font-semibold truncate">${customerName}</p>
+          ${email ? `<p class="text-sm text-text-secondary truncate">${email}</p>` : ''}
+          <p class="text-sm text-text-secondary flex items-center gap-1.5"><i data-lucide="map-pin" class="w-4 h-4 shrink-0"></i><span class="truncate">${address || 'No address on file'}</span></p>
+        </div>
+      </div>
+      <div class="bg-surface rounded-xl p-3 text-sm flex items-center gap-2"><i data-lucide="package" class="w-4 h-4 text-text-secondary"></i><span class="text-text-secondary">Rental:</span><span class="font-semibold">${equipment}</span></div>
+      <iframe
+        src="${_rentalMapUrl(address)}"
+        width="100%"
+        height="320"
+        style="border:0; border-radius: 12px;"
+        loading="lazy"
+        referrerpolicy="no-referrer-when-downgrade"
+        title="${customerName} location map"></iframe>
+    </div>
+  </div>`, 'max-w-xl');
+}
+
 async function renderRentals() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -116,6 +156,7 @@ function rentalRow(r) {
     <td>${statusBadge(r.status)}</td>
     <td>${statusBadge(r.paymentStatus || 'Unpaid')}</td>
     <td><div class="flex items-center gap-1">
+      <button onclick="openRentalLocationModal('${r._id}')" class="btn-action" title="Customer Location"><i data-lucide="map-pin" class="w-4 h-4 text-accent"></i></button>
       ${r.status === 'Active' || r.status === 'Pending' ? `<button onclick="handleReturnRental('${r._id}')" class="btn-action" title="Mark Returned"><i data-lucide="undo-2" class="w-4 h-4 text-success"></i></button>` : ''}
       ${r.status !== 'Cancelled' && r.status !== 'Returned' ? `<button onclick="handleCancelRental('${r._id}')" class="btn-action" title="Cancel Rental"><i data-lucide="x-circle" class="w-4 h-4 text-warning"></i></button>` : ''}
       <button onclick="openEditRentalModal('${r._id}')" class="btn-action" title="Edit"><i data-lucide="pencil" class="w-4 h-4"></i></button>
