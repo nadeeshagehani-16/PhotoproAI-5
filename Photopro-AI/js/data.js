@@ -1,16 +1,16 @@
 // PhotoPro AI – Mock Data
 const MOCK = {
   clients: [
-    { id:1, _id:'c1', name:'Pabasara Perera', email:'sophia@email.com', phone:'+1 (555) 234-5678', avatar:'https://i.pravatar.cc/80?img=1', bookings:5, spent:1275000, lastBooking:'2026-07-28', status:'Active', address:'142 Sunset Blvd, LA', notes:'Prefers outdoor shoots. Allergic to flash.' },
-    { id:2, _id:'c2', name:'Heshan Fernando', email:'james.m@email.com', phone:'+1 (555) 876-5432', avatar:'https://i.pravatar.cc/80?img=3', bookings:3, spent:840000, lastBooking:'2026-08-01', status:'Active', address:'88 Oak Street, NYC', notes:'Corporate client. Needs quick turnaround.' },
-    { id:3, _id:'c3', name:'Monishka Senadira', email:'emma.r@email.com', phone:'+1 (555) 345-6789', avatar:'https://i.pravatar.cc/80?img=5', bookings:8, spent:2280000, lastBooking:'2026-08-05', status:'Active', address:'56 Park Ave, Chicago', notes:'VIP client. Wedding + anniversary shoots.' },
-    { id:4, _id:'c4', name:'Ramod Ranthula', email:'m.chen@email.com', phone:'+1 (555) 456-7890', avatar:'https://i.pravatar.cc/80?img=8', bookings:2, spent:360000, lastBooking:'2026-06-15', status:'Inactive', address:'23 River Road, Seattle', notes:'Interested in portrait packages.' },
-    { id:5, _id:'c5', name:'Yasith', email:'isabella.t@email.com', phone:'+1 (555) 567-8901', avatar:'https://i.pravatar.cc/80?img=9', bookings:6, spent:1620000, lastBooking:'2026-07-20', status:'Active', address:'91 Maple Dr, Austin', notes:'Family portrait specialist.' },
-    { id:6, _id:'c6', name:'William Davis', email:'w.davis@email.com', phone:'+1 (555) 678-9012', avatar:'https://i.pravatar.cc/80?img=11', bookings:4, spent:930000, lastBooking:'2026-08-03', status:'Active', address:'15 Pine Lane, Denver', notes:'Corporate headshots & events.' },
-    { id:7, _id:'c7', name:'Olivia Martinez', email:'olivia.m@email.com', phone:'+1 (555) 789-0123', avatar:'https://i.pravatar.cc/80?img=16', bookings:7, spent:2040000, lastBooking:'2026-08-06', status:'Active', address:'67 Cedar Blvd, Miami', notes:'Wedding photographer client. Annual events.' },
-    { id:8, _id:'c8', name:'Alexander Kim', email:'a.kim@email.com', phone:'+1 (555) 890-1234', avatar:'https://i.pravatar.cc/80?img=14', bookings:1, spent:150000, lastBooking:'2026-05-10', status:'Inactive', address:'34 Elm St, Portland', notes:'One-time portrait session.' },
-    { id:9, _id:'c9', name:'Charlotte Brown', email:'charlotte.b@email.com', phone:'+1 (555) 901-2345', avatar:'https://i.pravatar.cc/80?img=20', bookings:4, spent:1050000, lastBooking:'2026-07-15', status:'Active', address:'78 Birch Way, Boston', notes:'Maternity and newborn specialist.' },
-    { id:10, _id:'c10', name:'Daniel Wilson', email:'d.wilson@email.com', phone:'+1 (555) 012-3456', avatar:'https://i.pravatar.cc/80?img=15', bookings:3, spent:660000, lastBooking:'2026-08-02', status:'Active', address:'45 Willow Ct, Nashville', notes:'Music event photography.' },
+    { id:1, _id:'c1', name:'Pabasara Perera', email:'sophia@email.com', phone:'+1 (555) 234-5678',  bookings:5, spent:1275000, lastBooking:'2026-07-28', status:'Active', address:'142 Sunset Blvd, LA', notes:'Prefers outdoor shoots. Allergic to flash.' },
+    { id:2, _id:'c2', name:'Heshan Fernando', email:'james.m@email.com', phone:'+1 (555) 876-5432',  bookings:3, spent:840000, lastBooking:'2026-08-01', status:'Active', address:'88 Oak Street, NYC', notes:'Corporate client. Needs quick turnaround.' },
+    { id:3, _id:'c3', name:'Monishka Senadira', email:'emma.r@email.com', phone:'+1 (555) 345-6789',  bookings:8, spent:2280000, lastBooking:'2026-08-05', status:'Active', address:'56 Park Ave, Chicago', notes:'VIP client. Wedding + anniversary shoots.' },
+    { id:4, _id:'c4', name:'Ramod Ranthula', email:'m.chen@email.com', phone:'+1 (555) 456-7890',  bookings:2, spent:360000, lastBooking:'2026-06-15', status:'Inactive', address:'23 River Road, Seattle', notes:'Interested in portrait packages.' },
+    { id:5, _id:'c5', name:'Yasith', email:'isabella.t@email.com', phone:'+1 (555) 567-8901',  bookings:6, spent:1620000, lastBooking:'2026-07-20', status:'Active', address:'91 Maple Dr, Austin', notes:'Family portrait specialist.' },
+    { id:6, _id:'c6', name:'William Davis', email:'w.davis@email.com', phone:'+1 (555) 678-9012',  bookings:4, spent:930000, lastBooking:'2026-08-03', status:'Active', address:'15 Pine Lane, Denver', notes:'Corporate headshots & events.' },
+    { id:7, _id:'c7', name:'Olivia Martinez', email:'olivia.m@email.com', phone:'+1 (555) 789-0123', bookings:7, spent:2040000, lastBooking:'2026-08-06', status:'Active', address:'67 Cedar Blvd, Miami', notes:'Wedding photographer client. Annual events.' },
+    { id:8, _id:'c8', name:'Alexander Kim', email:'a.kim@email.com', phone:'+1 (555) 890-1234',  bookings:1, spent:150000, lastBooking:'2026-05-10', status:'Inactive', address:'34 Elm St, Portland', notes:'One-time portrait session.' },
+    { id:9, _id:'c9', name:'Charlotte Brown', email:'charlotte.b@email.com', phone:'+1 (555) 901-2345',  bookings:4, spent:1050000, lastBooking:'2026-07-15', status:'Active', address:'78 Birch Way, Boston', notes:'Maternity and newborn specialist.' },
+    { id:10, _id:'c10', name:'Daniel Wilson', email:'d.wilson@email.com', phone:'+1 (555) 012-3456',  bookings:3, spent:660000, lastBooking:'2026-08-02', status:'Active', address:'45 Willow Ct, Nashville', notes:'Music event photography.' },
   ],
   bookings: [
     { id:1001, clientId:1, client:'Sophia Anderson', event:'Wedding', date:'2026-08-15', start:'10:00 AM', end:'6:00 PM', location:'Grand Ballroom, Ritz Carlton', package:'Premium', photographer:'Kalhara Senevirathne ', status:'Confirmed', payment:'Paid', amount:450000 },
@@ -93,9 +93,9 @@ const MOCK = {
     { icon:'target', color:'bg-indigo-50 text-indigo-700', title:'Client retention rate improved to 78%', detail:'Up from 65% last quarter. Loyalty program is working.', trend:'+13%' },
   ],
   todaySchedule: [
-    { client:'Isabella Thompson', avatar:'https://i.pravatar.cc/40?img=9', event:'Portrait Session', time:'2:00 PM – 4:00 PM', location:'Riverside Park', photographer:'Marcus Rivera', status:'In Progress' },
-    { client:'Emma Rodriguez', avatar:'https://i.pravatar.cc/40?img=5', event:'Birthday Party', time:'4:00 PM – 8:00 PM', location:'Sunset Garden Venue', photographer:'Kalhara Senevirathne ', status:'Upcoming' },
-    { client:'Charlotte Brown', avatar:'https://i.pravatar.cc/40?img=20', event:'Maternity Portrait', time:'5:00 PM – 6:30 PM', location:'Studio A', photographer:'Sarah Lee', status:'Upcoming' },
+    { client:'Isabella Thompson',  event:'Portrait Session', time:'2:00 PM – 4:00 PM', location:'Riverside Park', photographer:'Marcus Rivera', status:'In Progress' },
+    { client:'Emma Rodriguez',  event:'Birthday Party', time:'4:00 PM – 8:00 PM', location:'Sunset Garden Venue', photographer:'Kalhara Senevirathne ', status:'Upcoming' },
+    { client:'Charlotte Brown',  event:'Maternity Portrait', time:'5:00 PM – 6:30 PM', location:'Studio A', photographer:'Sarah Lee', status:'Upcoming' },
   ],
   upcomingEvents: [
     { title:'Anderson-Hayes Wedding', date:'Aug 15, 2026', image:'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&q=80', client:'Sophia Anderson' },
