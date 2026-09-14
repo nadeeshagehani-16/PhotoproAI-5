@@ -4,6 +4,54 @@ let _svcCustomers = [];
 let _svcPhotographers = [];
 let _svcPackages = [];
 
+// ── Validation Helpers ──
+function _svcTodayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function _validateSvcBookingForm(data) {
+  const errors = [];
+  const today = _svcTodayStr();
+
+  // Required fields
+  if (!data.customerId) errors.push('Please select a client.');
+  if (!data.packageId) errors.push('Please select a package.');
+  if (!data.photographerId) errors.push('Please select a photographer.');
+  if (!data.event) errors.push('Please select an event type.');
+  if (!data.date) errors.push('Please select a booking date.');
+  if (!data.startTime) errors.push('Please enter a start time.');
+  if (!data.endTime) errors.push('Please enter an end time.');
+  if (!data.location) errors.push('Please enter a location.');
+  if (data.amount === undefined || data.amount === null || isNaN(data.amount)) {
+    errors.push('Amount is required and must be a valid number.');
+  }
+
+  // Date must be today or future
+  if (data.date && data.date < today) {
+    errors.push('Booking date cannot be in the past. Please select today or a future date.');
+  }
+
+  // End time must be after start time
+  if (data.startTime && data.endTime && data.endTime <= data.startTime) {
+    errors.push('End time must be after start time.');
+  }
+
+  // Amount cannot be negative
+  if (!isNaN(data.amount) && data.amount < 0) {
+    errors.push('Amount cannot be negative. Please enter 0 or a positive value.');
+  }
+
+  return errors;
+}
+
+function _showSvcErrors(errEl, errors, btn, btnText) {
+  errEl.innerHTML = errors.map(e => '<div class="flex items-center gap-1"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i><span>' + e + '</span></div>').join('');
+  errEl.classList.remove('hidden');
+  lucide.createIcons();
+  btn.disabled = false; btn.textContent = btnText;
+}
+
 async function renderBookings() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -106,7 +154,7 @@ function openAddSvcBookingModal() {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Event Type *</label><select id="asb-event" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Wedding</option><option>Birthday</option><option>Corporate</option><option>Portrait</option><option>Event</option><option>Fashion</option></select></div>
       </div>
       <div class="grid grid-cols-3 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="asb-date" type="date" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="asb-date" type="date" required min="${_svcTodayStr()}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Time *</label><input id="asb-start" type="time" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">End Time *</label><input id="asb-end" type="time" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
       </div>
@@ -134,21 +182,31 @@ async function handleCreateSvcBooking(e) {
   const errEl = document.getElementById('asb-error');
   const btn = document.getElementById('asb-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Creating...';
+
+  const formData = {
+    customerId: document.getElementById('asb-client').value,
+    event: document.getElementById('asb-event').value,
+    date: document.getElementById('asb-date').value,
+    startTime: document.getElementById('asb-start').value,
+    endTime: document.getElementById('asb-end').value,
+    location: document.getElementById('asb-location').value.trim(),
+    packageId: document.getElementById('asb-package').value,
+    photographerId: document.getElementById('asb-photographer').value,
+    amount: parseFloat(document.getElementById('asb-amount').value),
+    status: document.getElementById('asb-status').value,
+    notes: document.getElementById('asb-notes').value.trim(),
+  };
+
+  // Frontend validation
+  const errors = _validateSvcBookingForm(formData);
+  if (errors.length > 0) {
+    _showSvcErrors(errEl, errors, btn, 'Create Booking');
+    return;
+  }
+
   try {
-    await api.createServiceBooking({
-      customerId: document.getElementById('asb-client').value,
-      event: document.getElementById('asb-event').value,
-      date: document.getElementById('asb-date').value,
-      startTime: document.getElementById('asb-start').value,
-      endTime: document.getElementById('asb-end').value,
-      location: document.getElementById('asb-location').value.trim(),
-      packageId: document.getElementById('asb-package').value,
-      photographerId: document.getElementById('asb-photographer').value,
-      amount: parseFloat(document.getElementById('asb-amount').value),
-      status: document.getElementById('asb-status').value,
-      notes: document.getElementById('asb-notes').value.trim(),
-    });
-    closeModal(); showToast('Service booking created!'); await loadSvcBookings();
+    await api.createServiceBooking(formData);
+    closeModal(); showToast('Service booking created successfully!'); await loadSvcBookings();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Create Booking';
@@ -176,7 +234,7 @@ function openEditSvcBookingModal(id) {
         </select></div>
       </div>
       <div class="grid grid-cols-3 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="esb-date" type="date" required value="${b.date||''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="esb-date" type="date" required min="${_svcTodayStr()}" value="${(b.date||'').toString().split('T')[0]}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Time *</label><input id="esb-start" type="time" required value="${b.startTime||''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">End Time *</label><input id="esb-end" type="time" required value="${b.endTime||''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
       </div>
@@ -206,21 +264,31 @@ async function handleUpdateSvcBooking(e, id) {
   const errEl = document.getElementById('esb-error');
   const btn = document.getElementById('esb-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Saving...';
+
+  const formData = {
+    customerId: document.getElementById('esb-client').value,
+    event: document.getElementById('esb-event').value,
+    date: document.getElementById('esb-date').value,
+    startTime: document.getElementById('esb-start').value,
+    endTime: document.getElementById('esb-end').value,
+    location: document.getElementById('esb-location').value.trim(),
+    packageId: document.getElementById('esb-package').value,
+    photographerId: document.getElementById('esb-photographer').value,
+    amount: parseFloat(document.getElementById('esb-amount').value),
+    status: document.getElementById('esb-status').value,
+    notes: document.getElementById('esb-notes').value.trim(),
+  };
+
+  // Frontend validation
+  const errors = _validateSvcBookingForm(formData);
+  if (errors.length > 0) {
+    _showSvcErrors(errEl, errors, btn, 'Save Changes');
+    return;
+  }
+
   try {
-    await api.updateServiceBooking(id, {
-      customerId: document.getElementById('esb-client').value,
-      event: document.getElementById('esb-event').value,
-      date: document.getElementById('esb-date').value,
-      startTime: document.getElementById('esb-start').value,
-      endTime: document.getElementById('esb-end').value,
-      location: document.getElementById('esb-location').value.trim(),
-      packageId: document.getElementById('esb-package').value,
-      photographerId: document.getElementById('esb-photographer').value,
-      amount: parseFloat(document.getElementById('esb-amount').value),
-      status: document.getElementById('esb-status').value,
-      notes: document.getElementById('esb-notes').value.trim(),
-    });
-    closeModal(); showToast('Booking updated!'); await loadSvcBookings();
+    await api.updateServiceBooking(id, formData);
+    closeModal(); showToast('Booking updated successfully!'); await loadSvcBookings();
   } catch (err) {
     errEl.textContent = err.message; errEl.classList.remove('hidden');
     btn.disabled = false; btn.textContent = 'Save Changes';
@@ -246,7 +314,7 @@ async function handleDeleteSvcBooking(id) {
   btn.disabled = true; btn.textContent = 'Deleting...';
   try {
     await api.deleteServiceBooking(id);
-    closeModal(); showToast('Booking deleted!'); await loadSvcBookings();
+    closeModal(); showToast('Booking deleted successfully!'); await loadSvcBookings();
   } catch (err) {
     document.getElementById('dsb-error').textContent = err.message;
     document.getElementById('dsb-error').classList.remove('hidden');

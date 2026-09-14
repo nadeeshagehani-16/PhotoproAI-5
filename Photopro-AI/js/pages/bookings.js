@@ -32,7 +32,7 @@ function openAddBookingModal() {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Event Type</label><select class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white outline-none focus:ring-2 focus:ring-accent/20"><option>Wedding</option><option>Birthday</option><option>Corporate</option><option>Portrait</option><option>Event</option></select></div>
       </div>
       <div class="grid grid-cols-3 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date</label><input type="date" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm outline-none focus:ring-2 focus:ring-accent/20" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date</label><input type="date" min="${new Date().toISOString().split('T')[0]}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm outline-none focus:ring-2 focus:ring-accent/20" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Time</label><input type="time" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm outline-none focus:ring-2 focus:ring-accent/20" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">End Time</label><input type="time" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm outline-none focus:ring-2 focus:ring-accent/20" /></div>
       </div>
