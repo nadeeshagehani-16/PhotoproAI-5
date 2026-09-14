@@ -1,16 +1,83 @@
 const Rental = require('../models/Rental');
 const Equipment = require('../models/Equipment');
 
+const STATUSES = ['Pending', 'Active', 'Returned', 'Overdue', 'Cancelled'];
+const PAYMENT_STATUSES = ['Unpaid', 'Paid', 'Refunded'];
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/;
+
+function _todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function _dateOnly(v) {
+  if (v === undefined || v === null || v === '') return '';
+  const s = String(v).split('T')[0].slice(0, 10);
+  return s;
+}
+
+function _validateRentalData(body, isUpdate = false) {
+  const errors = [];
+  const { customerId, equipmentId, startDate, endDate, totalCost, securityDeposit, status, paymentStatus, notes } = body;
+  const todayStr = _todayStr();
+
+  if (!isUpdate) {
+    if (!customerId) errors.push('Customer is required.');
+    if (!equipmentId) errors.push('Equipment is required.');
+    if (!startDate) errors.push('Start date is required.');
+    if (!endDate) errors.push('End date is required.');
+    if (totalCost === undefined || totalCost === null || totalCost === '') errors.push('Total cost is required.');
+  }
+  if (customerId !== undefined && customerId !== null && customerId !== '' && !OBJECT_ID_RE.test(String(customerId))) {
+    errors.push('Invalid customer ID format.');
+  }
+  if (equipmentId !== undefined && equipmentId !== null && equipmentId !== '' && !OBJECT_ID_RE.test(String(equipmentId))) {
+    errors.push('Invalid equipment ID format.');
+  }
+  // User-entered rental dates must be today or in the future
+  if (startDate !== undefined && startDate !== null && startDate !== '') {
+    if (Number.isNaN(new Date(startDate).getTime())) errors.push('Start date is invalid.');
+    else if (_dateOnly(startDate) < todayStr) errors.push('Start date cannot be in the past. Please choose today or a future date.');
+  }
+  if (endDate !== undefined && endDate !== null && endDate !== '') {
+    if (Number.isNaN(new Date(endDate).getTime())) errors.push('End date is invalid.');
+    else if (_dateOnly(endDate) < todayStr) errors.push('End date cannot be in the past. Please choose today or a future date.');
+  }
+  if (totalCost !== undefined && totalCost !== null && totalCost !== '') {
+    const c = Number(totalCost);
+    if (Number.isNaN(c)) errors.push('Total cost must be a valid number.');
+    else if (c < 0) errors.push('Total cost cannot be negative.');
+  }
+  if (securityDeposit !== undefined && securityDeposit !== null && securityDeposit !== '') {
+    const d = Number(securityDeposit);
+    if (Number.isNaN(d)) errors.push('Security deposit must be a valid number.');
+    else if (d < 0) errors.push('Security deposit cannot be negative.');
+  }
+  if (status !== undefined && status !== null && status !== '' && !STATUSES.includes(status)) {
+    errors.push('Status must be one of: ' + STATUSES.join(', ') + '.');
+  }
+  if (paymentStatus !== undefined && paymentStatus !== null && paymentStatus !== '' && !PAYMENT_STATUSES.includes(paymentStatus)) {
+    errors.push('Payment status must be one of: ' + PAYMENT_STATUSES.join(', ') + '.');
+  }
+  if (notes !== undefined && notes !== null && String(notes).length > 1000) {
+    errors.push('Notes cannot exceed 1000 characters.');
+  }
+  return errors;
+}
+
 exports.getRentals = async (req, res, next) => {
   try {
-    const rentals = await Rental.find().populate('customerId', 'name email').populate('equipmentId', 'name category brand');
+    const rentals = await Rental.find().populate('customerId', 'name email address avatar').populate('equipmentId', 'name category brand');
     res.json({ success: true, data: rentals });
   } catch (error) { next(error); }
 };
 
 exports.getRental = async (req, res, next) => {
   try {
-    const rental = await Rental.findById(req.params.id).populate('customerId', 'name email').populate('equipmentId', 'name category brand');
+    const rental = await Rental.findById(req.params.id).populate('customerId', 'name email address avatar').populate('equipmentId', 'name category brand');
     if (!rental) return res.status(404).json({ success: false, message: 'Rental not found' });
     res.json({ success: true, data: rental });
   } catch (error) { next(error); }
@@ -18,7 +85,16 @@ exports.getRental = async (req, res, next) => {
 
 exports.createRental = async (req, res, next) => {
   try {
-    const { equipmentId, startDate, endDate } = req.body;
+    const { equipmentId, customerId, startDate, endDate } = req.body;
+
+    const errors = _validateRentalData(req.body);
+    // End date must be after start date
+    if (startDate && endDate && new Date(endDate) <= new Date(startDate)) {
+      errors.push('End date must be after the start date.');
+    }
+    if (errors.length > 0) {
+      return res.status(400).json({ success: false, message: errors.join(' ') });
+    }
 
     // Check for overlapping rentals (prevent double-booking)
     const conflict = await Rental.findOne({
@@ -59,6 +135,15 @@ exports.updateRental = async (req, res, next) => {
     const finalEquipmentId = equipmentId || existingRental.equipmentId;
     const finalStartDate = startDate ? new Date(startDate) : existingRental.startDate;
     const finalEndDate = endDate ? new Date(endDate) : existingRental.endDate;
+
+    const errors = _validateRentalData(req.body, true);
+    // Final effective end date must be after the final effective start date
+    if (finalEndDate <= finalStartDate) {
+      errors.push('End date must be after the start date.');
+    }
+    if (errors.length > 0) {
+      return res.status(400).json({ success: false, message: errors.join(' ') });
+    }
 
     // Overlap detection when dates or equipment change (exclude current rental)
     if (equipmentId || startDate || endDate) {
