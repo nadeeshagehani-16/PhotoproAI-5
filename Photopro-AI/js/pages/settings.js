@@ -11,7 +11,7 @@ function renderSettings() {
         <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light">
           <h3 class="font-bold text-lg mb-5">Personal Information</h3>
           <div class="flex items-center gap-5 mb-6">
-            <img src="https://i.pravatar.cc/80?img=12" class="w-20 h-20 rounded-full ring-4 ring-accent/20" />
+            
             <div><button class="btn-dark px-4 py-2 text-sm">Change Photo</button><p class="text-xs text-text-secondary mt-2">JPG, PNG · Max 5MB</p></div>
           </div>
           <div class="grid grid-cols-2 gap-4">

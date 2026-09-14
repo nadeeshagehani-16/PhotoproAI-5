@@ -44,7 +44,7 @@ function renderDashboard() {
         </div>
         <div class="space-y-4">${MOCK.todaySchedule.map(s => `
           <div class="flex items-center gap-4 p-3 rounded-xl hover:bg-surface transition cursor-pointer">
-            <img src="${s.avatar}" class="w-11 h-11 rounded-full object-cover ring-2 ring-border-light" alt="${s.client}" />
+          
             <div class="flex-1 min-w-0">
               <p class="font-semibold text-sm truncate">${s.client}</p>
               <p class="text-xs text-text-secondary">${s.event} · ${s.location}</p>
@@ -65,7 +65,7 @@ function renderDashboard() {
         </div>
         <div class="space-y-4">${MOCK.clients.slice(0,5).map(c => `
           <div class="flex items-center gap-4 p-3 rounded-xl hover:bg-surface transition cursor-pointer" onclick="navigate('client-detail')">
-            <img src="${c.avatar}" class="w-11 h-11 rounded-full object-cover" alt="${c.name}" />
+           
             <div class="flex-1 min-w-0">
               <p class="font-semibold text-sm truncate">${c.name}</p>
               <p class="text-xs text-text-secondary">${c.bookings} bookings · Last: ${c.lastBooking}</p>
