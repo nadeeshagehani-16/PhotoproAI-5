@@ -158,4 +158,5 @@ const api = {
   async createStudioBooking(body) { return this.post('/studio-bookings', body); },
   async updateStudioBooking(id, body) { return this.put(`/studio-bookings/${id}`, body); },
   async deleteStudioBooking(id) { return this.delete(`/studio-bookings/${id}`); },
+  async getAvailableSlots(studioId, date) { return this.get(`/studio-bookings/available-slots?studioId=${studioId}&date=${date}`); },
 };

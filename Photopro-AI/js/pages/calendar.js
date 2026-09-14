@@ -15,6 +15,98 @@ function isValidObjectId(id) {
   return /^[0-9a-fA-F]{24}$/.test(String(id));
 }
 
+// Local-date helper (timezone-safe, avoids UTC shift in toISOString)
+function _calTodayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function _calFormatDate(d) {
+  if (!d) return '—';
+  if (typeof d === 'string' && d.includes('T')) return d.split('T')[0];
+  return d;
+}
+
+function _validateCalForm(type) {
+  const errors = [];
+  const today = _calTodayStr();
+  const date = document.getElementById('cal-date').value;
+  const start = document.getElementById('cal-start').value;
+  const end = document.getElementById('cal-end').value;
+  const cost = document.getElementById('cal-cost').value;
+  const notes = document.getElementById('cal-notes').value.trim();
+  const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+  if (!date) errors.push('Date is required.');
+  else if (date < today) errors.push('Date cannot be in the past. Please select today or a future date.');
+
+  if (!start) errors.push('Start time is required.');
+  else if (!timeRe.test(start)) errors.push('Start time is invalid (use HH:MM format).');
+
+  if (!end) errors.push('End time is required.');
+  else if (!timeRe.test(end)) errors.push('End time is invalid (use HH:MM format).');
+
+  if (start && end && end <= start) errors.push('End time must be after start time.');
+
+  if (type === 'studio') {
+    if (!document.getElementById('cal-purpose').value.trim()) errors.push('Purpose is required.');
+  } else {
+    if (!document.getElementById('cal-event-name').value.trim()) errors.push('Event type is required.');
+    if (!document.getElementById('cal-location').value.trim()) errors.push('Location is required.');
+    const pkgId = document.getElementById('cal-package').value;
+    if (!pkgId || !isValidObjectId(pkgId)) errors.push('Please select a valid package.');
+  }
+
+  if (cost !== '' && (isNaN(Number(cost)) || Number(cost) < 0)) errors.push('Cost cannot be negative.');
+  if (notes.length > 1000) errors.push('Notes cannot exceed 1000 characters.');
+
+  return errors;
+}
+
+function _calShowErrors(errEl, errors, btn, label) {
+  errEl.innerHTML = errors.map(e => '<div class="flex items-center gap-1"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i><span>' + e + '</span></div>').join('');
+  errEl.classList.remove('hidden');
+  lucide.createIcons();
+  btn.disabled = false;
+  btn.textContent = label;
+}
+
+// Validate the Edit Service Booking form (calendar) – mirrors _validateCalForm rules
+function _validateCalEditServiceForm() {
+  const errors = [];
+  const today = _calTodayStr();
+  const clientId = document.getElementById('cesb-client').value;
+  const eventName = document.getElementById('cesb-event').value.trim();
+  const date = document.getElementById('cesb-date').value;
+  const start = document.getElementById('cesb-start').value;
+  const end = document.getElementById('cesb-end').value;
+  const location = document.getElementById('cesb-location').value.trim();
+  const amount = document.getElementById('cesb-amount').value;
+  const notes = document.getElementById('cesb-notes').value.trim();
+  const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+  if (!clientId || !isValidObjectId(clientId)) errors.push('Please select a valid client.');
+  if (!eventName) errors.push('Event type is required.');
+
+  if (!date) errors.push('Date is required.');
+  else if (date < today) errors.push('Date cannot be in the past. Please select today or a future date.');
+
+  if (!start) errors.push('Start time is required.');
+  else if (!timeRe.test(start)) errors.push('Start time is invalid (use HH:MM format).');
+
+  if (!end) errors.push('End time is required.');
+  else if (!timeRe.test(end)) errors.push('End time is invalid (use HH:MM format).');
+
+  if (start && end && end <= start) errors.push('End time must be after start time.');
+
+  if (!location) errors.push('Location is required.');
+
+  if (amount !== '' && (isNaN(Number(amount)) || Number(amount) < 0)) errors.push('Amount cannot be negative. Please enter 0 or a positive amount.');
+  if (notes.length > 1000) errors.push('Notes cannot exceed 1000 characters.');
+
+  return errors;
+}
+
 async function renderCalendar() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -258,7 +350,7 @@ function openCalAddModalForDate(dateStr) {
       </div>
       <div class="grid grid-cols-3 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label>
-          <input id="cal-date" type="date" required value="${dateStr}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" />
+          <input id="cal-date" type="date" required min="${_calTodayStr()}" value="${dateStr}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" />
         </div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Time *</label>
           <input id="cal-start" type="time" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" />
@@ -319,6 +411,10 @@ async function handleCalCreate(e) {
   const btn = document.getElementById('cal-add-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Creating...';
   const type = document.getElementById('cal-type').value;
+
+  // Comprehensive validation
+  const errors = _validateCalForm(type);
+  if (errors.length > 0) { _calShowErrors(errEl, errors, btn, 'Create Booking'); return; }
 
   // Validate IDs are valid MongoDB ObjectIds
   const clientId = document.getElementById('cal-client').value;
@@ -394,7 +490,7 @@ function openCalViewStudioBooking(id) {
         <div><span class="text-text-secondary">Client:</span><br><span class="font-semibold">${clientName}</span></div>
       </div>
       <div class="grid grid-cols-3 gap-4">
-        <div><span class="text-text-secondary">Date:</span><br><span class="font-semibold">${b.date || '—'}</span></div>
+        <div><span class="text-text-secondary">Date:</span><br><span class="font-semibold">${_calFormatDate(b.date)}</span></div>
         <div><span class="text-text-secondary">Start:</span><br><span class="font-semibold">${b.startTime || '—'}</span></div>
         <div><span class="text-text-secondary">End:</span><br><span class="font-semibold">${b.endTime || '—'}</span></div>
       </div>
@@ -429,7 +525,7 @@ function openCalViewServiceBooking(id) {
         <div><span class="text-text-secondary">Event:</span><br><span class="font-semibold">${b.event || '—'}</span></div>
       </div>
       <div class="grid grid-cols-3 gap-4">
-        <div><span class="text-text-secondary">Date:</span><br><span class="font-semibold">${b.date || '—'}</span></div>
+        <div><span class="text-text-secondary">Date:</span><br><span class="font-semibold">${_calFormatDate(b.date)}</span></div>
         <div><span class="text-text-secondary">Start:</span><br><span class="font-semibold">${b.startTime || '—'}</span></div>
         <div><span class="text-text-secondary">End:</span><br><span class="font-semibold">${b.endTime || '—'}</span></div>
       </div>
@@ -469,7 +565,7 @@ function openEditCalServiceBooking(id) {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Event *</label><input id="cesb-event" type="text" required value="${esc(b.event)}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm" /></div>
       </div>
       <div class="grid grid-cols-3 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="cesb-date" type="date" required value="${(b.date || '').split('T')[0]}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="cesb-date" type="date" required min="${_calTodayStr()}" value="${(b.date || '').split('T')[0]}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Start *</label><input id="cesb-start" type="time" required value="${b.startTime || ''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">End *</label><input id="cesb-end" type="time" required value="${b.endTime || ''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm" /></div>
       </div>
@@ -493,6 +589,11 @@ async function handleCalUpdateService(e, id) {
   const errEl = document.getElementById('cesb-error');
   const btn = document.getElementById('cesb-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Saving...';
+
+  // Comprehensive validation (mirrors the add-booking form rules)
+  const errors = _validateCalEditServiceForm();
+  if (errors.length > 0) { _calShowErrors(errEl, errors, btn, 'Save Changes'); return; }
+
   try {
     await api.updateServiceBooking(id, {
       customerId: document.getElementById('cesb-client').value,
