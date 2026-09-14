@@ -133,7 +133,7 @@
           <p class="text-text-secondary mb-8">Start your free 14-day trial</p>
           <form id="register-form-el" onsubmit="handleRegister(event)" class="space-y-4">
             <div><label class="block text-sm font-medium text-text-secondary mb-1.5">Full Name</label><input id="reg-name" type="text" required placeholder="John Doe" class="w-full px-4 py-3 rounded-xl border border-border-light focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition text-sm" /></div>
-            <div><label class="block text-sm font-medium text-text-secondary mb-1.5">Email Address</label><input id="reg-email" type="email" required placeholder="hello@studio.com" class="w-full px-4 py-3 rounded-xl border border-border-light focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition text-sm" /></div>
+            <div><label class="block text-sm font-medium text-text-secondary mb-1.5">Email Address</label><input id="reg-email" type="email" required pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}" title="Enter a valid email like name@example.com (no # or $ characters)" placeholder="hello@studio.com" class="w-full px-4 py-3 rounded-xl border border-border-light focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition text-sm" /></div>
             <div><label class="block text-sm font-medium text-text-secondary mb-1.5">Password</label><input id="reg-password" type="password" required minlength="6" placeholder="Min 8 characters" class="w-full px-4 py-3 rounded-xl border border-border-light focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition text-sm" /></div>
             <div id="reg-error" class="hidden text-sm text-error bg-red-50 p-3 rounded-xl"></div>
             <button type="submit" id="reg-submit" class="w-full py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition shadow-lg active:scale-[0.98]">Create Account</button>
@@ -159,7 +159,7 @@
       <div class="p-4 border-t border-white/10">
         <div class="flex items-center gap-3">
           <img src="https://i.pravatar.cc/40?img=12" class="w-9 h-9 rounded-full ring-2 ring-accent/40" alt="User" />
-          <div class="flex-1 min-w-0"><p class="text-sm font-semibold truncate">Alex Morgan</p><p class="text-xs text-white/50 truncate">Studio Owner</p></div>
+          <div class="flex-1 min-w-0"><p class="text-sm font-semibold truncate">Alex Morgan</p><p class="text-xs text-white/50 truncate">Kalhara Senevirathne </p></div>
           <button onclick="logout()" class="p-1.5 rounded-lg hover:bg-white/10 transition" title="Logout"><i data-lucide="log-out" class="w-4 h-4 text-white/60"></i></button>
         </div>
       </div>
@@ -185,8 +185,8 @@
           </button>
           <button class="p-2.5 rounded-xl hover:bg-hover-light transition"><i data-lucide="help-circle" class="w-5 h-5 text-text-secondary"></i></button>
           <div class="hidden sm:flex items-center gap-3 ml-2 pl-4 border-l border-border-light">
-            <div class="text-right"><p class="text-sm font-semibold">Alex Morgan</p><p class="text-xs text-text-secondary">Lumière Studio</p></div>
-            <img src="https://i.pravatar.cc/40?img=12" class="w-9 h-9 rounded-full ring-2 ring-accent/30" alt="User" />
+            <div class="text-right"><p class="text-sm font-semibold">Alex Morgan</p><p class="text-xs text-text-secondary">DMP MEDIA LK</p></div>
+           
           </div>
         </div>
       </header>

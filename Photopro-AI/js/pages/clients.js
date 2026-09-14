@@ -1,6 +1,36 @@
 // Clients Page – Wired to Customer CRUD API
 let _clientsCache = [];
 
+const _CLIENT_EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const _CLIENT_PHONE_RE = /^\+?[\d\s\-().]{7,20}$/;
+
+function _validateClientForm(data) {
+  const errors = [];
+  if (!data.name || data.name.trim().length < 2) errors.push('Full name is required (min 2 characters).');
+  if (!data.email) errors.push('Email is required.');
+  else if (!_CLIENT_EMAIL_RE.test(data.email.trim())) errors.push('Email format is invalid. Use a valid address like name@example.com (characters such as # or $ are not allowed).');
+  if (!data.phone) errors.push('Phone is required.');
+  else if (!_CLIENT_PHONE_RE.test(data.phone.trim())) errors.push('Phone must be 7-15 digits, optionally starting with +.');
+  if (data.name && data.name.trim().length > 100) errors.push('Name cannot exceed 100 characters.');
+  if (data.address && data.address.trim().length > 200) errors.push('Address cannot exceed 200 characters.');
+  if (data.notes && data.notes.length > 1000) errors.push('Notes cannot exceed 1000 characters.');
+  return errors;
+}
+
+function _showClientErrors(errEl, errors, btn, label) {
+  errEl.innerHTML = errors.map(e => `<div class="flex items-start gap-1.5"><i data-lucide="alert-circle" class="w-4 h-4 mt-0.5 shrink-0"></i><span>${e}</span></div>`).join('');
+  errEl.classList.remove('hidden');
+  lucide.createIcons();
+  btn.disabled = false;
+  btn.textContent = label;
+}
+
+// Google Maps embed URL for a client's address (no API key required)
+function _clientMapUrl(address) {
+  const q = encodeURIComponent(address || 'Colombo, Sri Lanka');
+  return `https://maps.google.com/maps?q=${q}&output=embed`;
+}
+
 async function renderClients() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -120,17 +150,20 @@ async function handleCreateClient(e) {
   const errEl = document.getElementById('ac-error');
   const btn = document.getElementById('ac-submit');
   errEl.classList.add('hidden');
+  const data = {
+    name: document.getElementById('ac-name').value.trim(),
+    email: document.getElementById('ac-email').value.trim(),
+    phone: document.getElementById('ac-phone').value.trim(),
+    address: document.getElementById('ac-address').value.trim(),
+    notes: document.getElementById('ac-notes').value.trim(),
+    status: document.getElementById('ac-status').value,
+  };
+  const errors = _validateClientForm(data);
+  if (errors.length > 0) { _showClientErrors(errEl, errors, btn, 'Add Client'); return; }
   btn.disabled = true;
   btn.textContent = 'Creating...';
   try {
-    await api.createCustomer({
-      name: document.getElementById('ac-name').value.trim(),
-      email: document.getElementById('ac-email').value.trim(),
-      phone: document.getElementById('ac-phone').value.trim(),
-      address: document.getElementById('ac-address').value.trim(),
-      notes: document.getElementById('ac-notes').value.trim(),
-      status: document.getElementById('ac-status').value,
-    });
+    await api.createCustomer(data);
     closeModal();
     showToast('Client added successfully!');
     await loadClients();
@@ -174,17 +207,20 @@ async function handleUpdateClient(e, id) {
   const errEl = document.getElementById('ec-error');
   const btn = document.getElementById('ec-submit');
   errEl.classList.add('hidden');
+  const data = {
+    name: document.getElementById('ec-name').value.trim(),
+    email: document.getElementById('ec-email').value.trim(),
+    phone: document.getElementById('ec-phone').value.trim(),
+    address: document.getElementById('ec-address').value.trim(),
+    notes: document.getElementById('ec-notes').value.trim(),
+    status: document.getElementById('ec-status').value,
+  };
+  const errors = _validateClientForm(data);
+  if (errors.length > 0) { _showClientErrors(errEl, errors, btn, 'Save Changes'); return; }
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
-    await api.updateCustomer(id, {
-      name: document.getElementById('ec-name').value.trim(),
-      email: document.getElementById('ec-email').value.trim(),
-      phone: document.getElementById('ec-phone').value.trim(),
-      address: document.getElementById('ec-address').value.trim(),
-      notes: document.getElementById('ec-notes').value.trim(),
-      status: document.getElementById('ec-status').value,
-    });
+    await api.updateCustomer(id, data);
     closeModal();
     showToast('Client updated successfully!');
     await loadClients();
@@ -274,6 +310,21 @@ async function renderClientDetail(id) {
         </div>
       </div>
       <div class="xl:col-span-2 space-y-6">
+        <!-- Location Map -->
+        <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light">
+          <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="map-pin" class="w-5 h-5 text-accent"></i>
+            <h3 class="font-bold">Location</h3>
+          </div>
+          <iframe
+            src="${_clientMapUrl(c.address)}"
+            width="100%"
+            height="280"
+            style="border:0; border-radius: 12px;"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            title="${c.name} location map"></iframe>
+        </div>
         <!-- Notes -->
         <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light">
           <h3 class="font-bold mb-3">Notes</h3>
