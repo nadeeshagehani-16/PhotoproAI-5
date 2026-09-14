@@ -71,6 +71,42 @@ function _calShowErrors(errEl, errors, btn, label) {
   btn.textContent = label;
 }
 
+// Validate the Edit Service Booking form (calendar) – mirrors _validateCalForm rules
+function _validateCalEditServiceForm() {
+  const errors = [];
+  const today = _calTodayStr();
+  const clientId = document.getElementById('cesb-client').value;
+  const eventName = document.getElementById('cesb-event').value.trim();
+  const date = document.getElementById('cesb-date').value;
+  const start = document.getElementById('cesb-start').value;
+  const end = document.getElementById('cesb-end').value;
+  const location = document.getElementById('cesb-location').value.trim();
+  const amount = document.getElementById('cesb-amount').value;
+  const notes = document.getElementById('cesb-notes').value.trim();
+  const timeRe = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+  if (!clientId || !isValidObjectId(clientId)) errors.push('Please select a valid client.');
+  if (!eventName) errors.push('Event type is required.');
+
+  if (!date) errors.push('Date is required.');
+  else if (date < today) errors.push('Date cannot be in the past. Please select today or a future date.');
+
+  if (!start) errors.push('Start time is required.');
+  else if (!timeRe.test(start)) errors.push('Start time is invalid (use HH:MM format).');
+
+  if (!end) errors.push('End time is required.');
+  else if (!timeRe.test(end)) errors.push('End time is invalid (use HH:MM format).');
+
+  if (start && end && end <= start) errors.push('End time must be after start time.');
+
+  if (!location) errors.push('Location is required.');
+
+  if (amount !== '' && (isNaN(Number(amount)) || Number(amount) < 0)) errors.push('Amount cannot be negative. Please enter 0 or a positive amount.');
+  if (notes.length > 1000) errors.push('Notes cannot exceed 1000 characters.');
+
+  return errors;
+}
+
 async function renderCalendar() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -553,6 +589,11 @@ async function handleCalUpdateService(e, id) {
   const errEl = document.getElementById('cesb-error');
   const btn = document.getElementById('cesb-submit');
   errEl.classList.add('hidden'); btn.disabled = true; btn.textContent = 'Saving...';
+
+  // Comprehensive validation (mirrors the add-booking form rules)
+  const errors = _validateCalEditServiceForm();
+  if (errors.length > 0) { _calShowErrors(errEl, errors, btn, 'Save Changes'); return; }
+
   try {
     await api.updateServiceBooking(id, {
       customerId: document.getElementById('cesb-client').value,
