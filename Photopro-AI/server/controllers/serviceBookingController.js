@@ -128,13 +128,18 @@ exports.updateServiceBooking = async (req, res, next) => {
       return res.status(400).json({ success: false, message: validationErrors.join(' ') });
     }
 
-    // Check photographer conflicts when photographer, date, or time changes (exclude current booking)
     const { photographerId, date, startTime, endTime } = req.body;
     const finalPhotographerId = photographerId || existing.photographerId;
     const finalDate = date ? new Date(date) : existing.date;
     const finalStart = startTime || existing.startTime;
     const finalEnd = endTime || existing.endTime;
 
+    // End time must be after start time (compare final values after DB fallback)
+    if (finalEnd <= finalStart) {
+      return res.status(400).json({ success: false, message: 'End time must be after start time.' });
+    }
+
+    // Prevent photographer booking conflicts when photographer, date, or time changes (exclude current booking)
     if (finalPhotographerId && (photographerId || date || startTime || endTime)) {
       const conflict = await ServiceBooking.findOne({
         photographerId: finalPhotographerId,
