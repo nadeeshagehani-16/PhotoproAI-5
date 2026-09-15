@@ -1,18 +1,25 @@
 const Package = require('../models/Package');
 
-// ── Shared validation helper ──
+// ── Shared validation helper for package data ──
+/**
+ * Validate package data before create or update.
+ * @param {object} body      - req.body
+ * @param {boolean} isUpdate - true for updates (skips required checks for absent fields)
+ * @returns {string[]} array of error messages (empty = valid)
+ */
 function _validatePackageData(body, isUpdate = false) {
   const errors = [];
   const { name, price, duration, photos, photographers, description } = body;
 
-  // Required fields on create
+  // ── REQUIRED FIELD CHECKS (only enforced on CREATE, not partial update) ──
+  // Name, price, and duration are mandatory for new packages
   if (!isUpdate) {
     if (!name || !name.trim()) errors.push('Package name is required.');
     if (price === undefined || price === null || price === '') errors.push('Price is required.');
     if (!duration || !duration.trim()) errors.push('Duration is required.');
   }
 
-  // Name validation
+  // ── NAME: non-empty string, max 100 characters ──
   if (name !== undefined && name !== null) {
     if (typeof name !== 'string' || !name.trim()) {
       errors.push('Package name cannot be empty.');
@@ -21,7 +28,7 @@ function _validatePackageData(body, isUpdate = false) {
     }
   }
 
-  // Price validation: required number, cannot be negative
+  // ── PRICE: must be a valid number, cannot be negative ──
   if (price !== undefined && price !== null && price !== '') {
     const p = parseFloat(price);
     if (isNaN(p)) {
@@ -31,7 +38,7 @@ function _validatePackageData(body, isUpdate = false) {
     }
   }
 
-  // Duration validation: non-empty string when provided
+  // ── DURATION: non-empty string, max 50 chars (e.g. "4 Hours", "Full Day") ──
   if (duration !== undefined && duration !== null && duration !== '') {
     if (typeof duration !== 'string' || !duration.trim()) {
       errors.push('Duration must be a non-empty string (e.g. "4 Hours").');
@@ -40,7 +47,7 @@ function _validatePackageData(body, isUpdate = false) {
     }
   }
 
-  // Photos count: non-negative integer when provided
+  // ── PHOTOS COUNT: non-negative integer (0 or more) ──
   if (photos !== undefined && photos !== null && photos !== '') {
     const n = parseInt(photos);
     if (isNaN(n) || n < 0) {
@@ -48,7 +55,7 @@ function _validatePackageData(body, isUpdate = false) {
     }
   }
 
-  // Photographers count: positive integer when provided
+  // ── PHOTOGRAPHERS COUNT: must be at least 1 ──
   if (photographers !== undefined && photographers !== null && photographers !== '') {
     const n = parseInt(photographers);
     if (isNaN(n) || n < 1) {
@@ -56,7 +63,7 @@ function _validatePackageData(body, isUpdate = false) {
     }
   }
 
-  // Description length guard
+  // ── DESCRIPTION: max 1000 characters ──
   if (description !== undefined && description !== null && typeof description === 'string' && description.length > 1000) {
     errors.push('Description cannot exceed 1000 characters.');
   }
@@ -64,6 +71,7 @@ function _validatePackageData(body, isUpdate = false) {
   return errors;
 }
 
+// @route   GET /api/packages — list all packages
 exports.getPackages = async (req, res, next) => {
   try {
     const packages = await Package.find();
@@ -71,6 +79,7 @@ exports.getPackages = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   GET /api/packages/:id — get single package by ID
 exports.getPackage = async (req, res, next) => {
   try {
     const pkg = await Package.findById(req.params.id);
@@ -79,9 +88,10 @@ exports.getPackage = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   POST /api/packages — create new package
 exports.createPackage = async (req, res, next) => {
   try {
-    // Comprehensive validation
+    // ── Run all validation rules; return 400 with joined error messages if any fail ──
     const validationErrors = _validatePackageData(req.body, false);
     if (validationErrors.length > 0) {
       return res.status(400).json({ success: false, message: validationErrors.join(' ') });
@@ -92,9 +102,10 @@ exports.createPackage = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   PUT /api/packages/:id — update existing package
 exports.updatePackage = async (req, res, next) => {
   try {
-    // Validate incoming fields
+    // ── Run validation (isUpdate=true: only validates fields that are present in body) ──
     const validationErrors = _validatePackageData(req.body, true);
     if (validationErrors.length > 0) {
       return res.status(400).json({ success: false, message: validationErrors.join(' ') });
@@ -106,6 +117,7 @@ exports.updatePackage = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   DELETE /api/packages/:id — delete a package
 exports.deletePackage = async (req, res, next) => {
   try {
     const pkg = await Package.findByIdAndDelete(req.params.id);

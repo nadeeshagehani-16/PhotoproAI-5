@@ -1,12 +1,20 @@
 const ServiceBooking = require('../models/ServiceBooking');
 const mongoose = require('mongoose');
 
-// ── Shared validation helper ──
+// ── Shared validation helper for service booking data ──
+/**
+ * Validate service booking data before create or update.
+ * Covers date, time, amount, and ObjectId validation.
+ * @param {object} body      - req.body
+ * @param {boolean} isUpdate - true for updates (skips required checks for absent fields)
+ * @returns {string[]} array of error messages (empty = valid)
+ */
 function _validateBookingData(body, isUpdate = false) {
   const errors = [];
   const { customerId, packageId, photographerId, event, date, startTime, endTime, location, amount } = body;
 
-  // Required fields on create
+  // ── REQUIRED FIELD CHECKS (only enforced on CREATE, not partial update) ──
+  // All fields mandatory: client, package, photographer, event, date, times, location, amount
   if (!isUpdate) {
     if (!customerId) errors.push('Client is required.');
     if (!packageId) errors.push('Package is required.');
@@ -19,6 +27,7 @@ function _validateBookingData(body, isUpdate = false) {
     if (amount === undefined || amount === null || amount === '') errors.push('Amount is required.');
   }
 
+  // ── OBJECTID FORMAT: uses mongoose.Types.ObjectId.isValid() for BSON validation ──
   // Validate ObjectId formats
   if (customerId && !mongoose.Types.ObjectId.isValid(customerId)) {
     errors.push('Invalid client ID format.');
@@ -30,6 +39,8 @@ function _validateBookingData(body, isUpdate = false) {
     errors.push('Invalid photographer ID format.');
   }
 
+  // ── TIME FORMAT: must match HH:MM in 24-hour format ──
+  // Accepts 00:00–23:59; rejects "9:00" (missing leading zero) or "25:00"
   // Validate time format (HH:MM)
   const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
   if (startTime && !timeRegex.test(startTime)) {
@@ -39,11 +50,16 @@ function _validateBookingData(body, isUpdate = false) {
     errors.push('Invalid end time format. Use HH:MM (e.g. 12:00).');
   }
 
+  // ── END TIME > START TIME (body-level check) ──
+  // String comparison works because both are "HH:MM" format
+  // Only runs when BOTH times are in the body (partial updates handled in the handler)
   // End time must be after start time
   if (startTime && endTime && endTime <= startTime) {
     errors.push('End time must be after start time.');
   }
 
+  // ── DATE VALIDATION: past-date rejection ──
+  // Compares yyyy-MM-dd strings; today-date from local clock
   // Date must be today or future (compare yyyy-MM-dd)
   if (date) {
     const dateStr = new Date(date).toISOString().split('T')[0];
@@ -54,6 +70,7 @@ function _validateBookingData(body, isUpdate = false) {
     }
   }
 
+  // ── AMOUNT: must be a valid number, cannot be negative ──
   // Amount cannot be negative
   if (amount !== undefined && amount !== null && amount !== '') {
     const a = parseFloat(amount);
@@ -65,6 +82,7 @@ function _validateBookingData(body, isUpdate = false) {
   return errors;
 }
 
+// @route   GET /api/service-bookings — list all bookings (with populated refs)
 exports.getServiceBookings = async (req, res, next) => {
   try {
     const bookings = await ServiceBooking.find()
@@ -75,6 +93,7 @@ exports.getServiceBookings = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   GET /api/service-bookings/:id — get single booking by ID
 exports.getServiceBooking = async (req, res, next) => {
   try {
     const booking = await ServiceBooking.findById(req.params.id)
@@ -86,16 +105,21 @@ exports.getServiceBooking = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   POST /api/service-bookings — create new booking
 exports.createServiceBooking = async (req, res, next) => {
   try {
     const { photographerId, date, startTime, endTime } = req.body;
 
+    // ── Run all validation rules; return 400 with joined error messages if any fail ──
     // Comprehensive validation
     const validationErrors = _validateBookingData(req.body, false);
     if (validationErrors.length > 0) {
       return res.status(400).json({ success: false, message: validationErrors.join(' ') });
     }
 
+    // ── PHOTOGRAPHER TIME-SLOT CONFLICT PREVENTION ──
+    // Prevents the same photographer from being double-booked on the same date
+    // with overlapping start/end times. Only checks active statuses.
     // Prevent photographer booking conflicts
     if (photographerId) {
       const conflict = await ServiceBooking.findOne({
@@ -117,11 +141,13 @@ exports.createServiceBooking = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   PUT /api/service-bookings/:id — update existing booking
 exports.updateServiceBooking = async (req, res, next) => {
   try {
     const existing = await ServiceBooking.findById(req.params.id);
     if (!existing) return res.status(404).json({ success: false, message: 'Booking not found' });
 
+    // ── Run validation (isUpdate=true: only validates fields that are present in body) ──
     // Validate incoming fields
     const validationErrors = _validateBookingData(req.body, true);
     if (validationErrors.length > 0) {
@@ -134,11 +160,18 @@ exports.updateServiceBooking = async (req, res, next) => {
     const finalStart = startTime || existing.startTime;
     const finalEnd = endTime || existing.endTime;
 
+    // ── FINAL-VALUE END > START CHECK (after merging body with existing DB record) ──
+    // When only endTime is sent (no startTime), body-level validator skips the
+    // comparison. The handler loads the existing record, computes the FINAL
+    // effective values, then compares.
     // End time must be after start time (compare final values after DB fallback)
     if (finalEnd <= finalStart) {
       return res.status(400).json({ success: false, message: 'End time must be after start time.' });
     }
 
+    // ── PHOTOGRAPHER CONFLICT CHECK (excluding current booking) ──
+    // Uses _id: { $ne: req.params.id } so the current booking doesn't conflict with itself
+    // Only re-checks when photographer, date, or time fields actually changed
     // Prevent photographer booking conflicts when photographer, date, or time changes (exclude current booking)
     if (finalPhotographerId && (photographerId || date || startTime || endTime)) {
       const conflict = await ServiceBooking.findOne({
@@ -160,6 +193,7 @@ exports.updateServiceBooking = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   DELETE /api/service-bookings/:id — delete a booking
 exports.deleteServiceBooking = async (req, res, next) => {
   try {
     const booking = await ServiceBooking.findByIdAndDelete(req.params.id);
