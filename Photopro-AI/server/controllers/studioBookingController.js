@@ -1,11 +1,18 @@
 const StudioBooking = require('../models/StudioBooking');
 const mongoose = require('mongoose');
 
-// ── Shared validation helper ──
+// ── Shared validation helper for studio booking data ──
+/**
+ * Validate studio booking data before create or update.
+ * @param {object} body      - req.body
+ * @param {boolean} isUpdate - true for updates (skips required checks for absent fields)
+ * @returns {string[]} array of error messages (empty = valid)
+ */
 function _validateBookingData(body, isUpdate = false) {
   const errors = [];
   const { studioId, customerId, date, startTime, endTime, totalCost, purpose } = body;
 
+  // ── REQUIRED FIELD CHECKS (only enforced on CREATE, not partial update) ──
   // Only validate required fields on create, or if they're present on update
   if (!isUpdate || studioId || customerId || date || startTime || endTime) {
     if (!studioId && !isUpdate) errors.push('Studio is required.');
@@ -15,11 +22,13 @@ function _validateBookingData(body, isUpdate = false) {
     if (!endTime && !isUpdate) errors.push('End time is required.');
   }
 
+  // ── PURPOSE: required on create ──
   // Validate purpose is provided on create
   if (!isUpdate && (!purpose || !purpose.trim())) {
     errors.push('Purpose is required.');
   }
 
+  // ── OBJECTID FORMAT: studioId and customerId via mongoose.Types.ObjectId.isValid() ──
   // Validate ObjectId format
   if (studioId && !mongoose.Types.ObjectId.isValid(studioId)) {
     errors.push('Invalid studio ID format.');
@@ -28,6 +37,7 @@ function _validateBookingData(body, isUpdate = false) {
     errors.push('Invalid customer ID format.');
   }
 
+  // ── TIME FORMAT: must match HH:MM in 24-hour format ──
   // Validate time format (HH:MM)
   const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
   if (startTime && !timeRegex.test(startTime)) {
@@ -37,11 +47,16 @@ function _validateBookingData(body, isUpdate = false) {
     errors.push('Invalid end time format. Use HH:MM (e.g. 12:00).');
   }
 
+  // ── END TIME > START TIME (body-level, when both present) ──
+  // String comparison works because both are "HH:MM" format
   // End time must be after start time
   if (startTime && endTime && endTime <= startTime) {
     errors.push('End time must be after start time.');
   }
 
+  // ── DATE VALIDATION: past-date rejection using LOCAL date construction ──
+  // Uses getFullYear/getMonth/getDate to avoid UTC timezone shift
+  // in Sri Lanka (UTC+5:30) where toISOString() returns the previous day.
   // Date must be today or future (compare date string yyyy-MM-dd using local date)
   if (date) {
     const d = new Date(date);
@@ -53,6 +68,7 @@ function _validateBookingData(body, isUpdate = false) {
     }
   }
 
+  // ── TOTAL COST: cannot be negative ──
   // Total cost cannot be negative
   if (totalCost !== undefined && totalCost !== null && totalCost !== '') {
     const cost = parseFloat(totalCost);
@@ -64,6 +80,7 @@ function _validateBookingData(body, isUpdate = false) {
   return errors;
 }
 
+// @route   GET /api/studio-bookings — list all bookings (with studio + customer populate)
 exports.getStudioBookings = async (req, res, next) => {
   try {
     const bookings = await StudioBooking.find()
@@ -73,6 +90,7 @@ exports.getStudioBookings = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   GET /api/studio-bookings/:id — get single booking by ID
 exports.getStudioBooking = async (req, res, next) => {
   try {
     const booking = await StudioBooking.findById(req.params.id)
@@ -83,16 +101,21 @@ exports.getStudioBooking = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   POST /api/studio-bookings — create new booking
 exports.createStudioBooking = async (req, res, next) => {
   try {
     const { studioId, date, startTime, endTime } = req.body;
 
+    // ── Run all validation rules; return 400 with joined error messages if any fail ──
     // Comprehensive validation
     const validationErrors = _validateBookingData(req.body, false);
     if (validationErrors.length > 0) {
       return res.status(400).json({ success: false, message: validationErrors.join(' ') });
     }
 
+    // ── STUDIO DOUBLE-BOOKING PREVENTION ──
+    // Queries for overlapping time ranges on the same studio + date
+    // Only checks Pending/Confirmed bookings
     // Prevent studio double-booking
     const conflict = await StudioBooking.findOne({
       studioId,
@@ -112,11 +135,13 @@ exports.createStudioBooking = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   PUT /api/studio-bookings/:id — update existing booking
 exports.updateStudioBooking = async (req, res, next) => {
   try {
     const existing = await StudioBooking.findById(req.params.id);
     if (!existing) return res.status(404).json({ success: false, message: 'Studio booking not found' });
 
+    // ── Run validation (isUpdate=true: only validates fields that are present in body) ──
     // Validate incoming fields
     const validationErrors = _validateBookingData(req.body, true);
     if (validationErrors.length > 0) {
@@ -129,11 +154,18 @@ exports.updateStudioBooking = async (req, res, next) => {
     const finalStart = startTime || existing.startTime;
     const finalEnd = endTime || existing.endTime;
 
+    // ── FINAL-VALUE END > START CHECK (after merging body with existing DB record) ──
+    // When only endTime is sent (no startTime), body-level validator skips the
+    // comparison. The handler loads the existing record, computes the FINAL
+    // effective values, then compares.
     // Validate end time is after start time
     if (finalEnd <= finalStart) {
       return res.status(400).json({ success: false, message: 'End time must be after start time' });
     }
 
+    // ── STUDIO CONFLICT CHECK (excluding current booking) ──
+    // Uses _id: { $ne: req.params.id } so the current booking doesn't conflict with itself
+    // Only re-checks when studio, date, or time fields actually changed
     // Check for conflicts when studio, date, or time changes (exclude current booking)
     if (studioId || date || startTime || endTime) {
       const conflict = await StudioBooking.findOne({
@@ -155,6 +187,7 @@ exports.updateStudioBooking = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// @route   DELETE /api/studio-bookings/:id — delete a booking
 exports.deleteStudioBooking = async (req, res, next) => {
   try {
     const booking = await StudioBooking.findByIdAndDelete(req.params.id);
