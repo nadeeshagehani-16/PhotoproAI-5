@@ -1,0 +1,8 @@
+Complete payment management and validation
+
+- Backend: payment validation (non-negative amounts, today/future dates for user-entered payment dates, valid method/type/status enums, ObjectId checks, required fields, length guards)
+- Backend: deposit validation (non-negative amounts and refund amounts, refund cannot exceed deposit, valid status/method enums, auto-stamped refund dates)
+- Frontend: payment and deposit forms now load real customers from MongoDB instead of mock client list
+- Frontend: fixed enum mismatches that broke record creation (method 'Online Payment'->'Online', types aligned to model enums)
+- Frontend: form validation with inline error display, date min attributes, standardized success messages
+- Security: no card numbers/CVV/secrets stored, .env gitignored (verified)
