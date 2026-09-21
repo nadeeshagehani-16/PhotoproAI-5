@@ -4,6 +4,7 @@ let _clientsCache = [];
 const _CLIENT_EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const _CLIENT_PHONE_RE = /^\+?[\d\s\-().]{7,20}$/;
 
+// ADDED BY TEAM - Form Validation: validates client create/edit form (required fields, email format, phone format, length limits)
 function _validateClientForm(data) {
   const errors = [];
   if (!data.name || data.name.trim().length < 2) errors.push('Full name is required (min 2 characters).');
@@ -60,7 +61,17 @@ function renderClientsTable(clients) {
   const content = document.getElementById('clients-content');
   content.classList.remove('hidden');
   content.innerHTML = `
-    ${searchFilter('Search clients by name, email...', ['All Status', 'Active', 'Inactive'])}
+    <!-- ADDED BY TEAM - Search & Filter: search box + status dropdown (applied together) -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+      <div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+        <input id="clients-search" type="text" placeholder="Search clients by name, email or phone..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition" />
+      </div>
+      <div class="flex gap-2">
+        <select id="clients-status-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Status</option><option>Active</option><option>Inactive</option>
+        </select>
+      </div>
+    </div>
     <div class="table-wrap">
       <table class="data-table">
         <thead><tr><th>Client</th><th>Email</th><th>Phone</th><th>Bookings</th><th>Total Spent</th><th>Last Booking</th><th>Status</th><th>Actions</th></tr></thead>
@@ -68,14 +79,13 @@ function renderClientsTable(clients) {
       </table>
     </div>
     <div class="flex items-center justify-between mt-4 text-sm text-text-secondary">
-      <span>Showing ${clients.length} client(s)</span>
+      <span id="clients-count">Showing ${clients.length} client(s)</span>
     </div>`;
-  // Wire search
-  const searchInput = content.querySelector('input[type="text"]');
-  if (searchInput) searchInput.addEventListener('input', () => filterClientsTable(searchInput.value));
-  // Wire status filter
-  const statusFilter = content.querySelectorAll('select')[0];
-  if (statusFilter) statusFilter.addEventListener('change', () => filterClientsByStatus(statusFilter.value));
+  // ADDED BY TEAM - Search & Filter: wire search input and status dropdown to the combined filter
+  const searchInput = document.getElementById('clients-search');
+  if (searchInput) searchInput.addEventListener('input', () => filterClients());
+  const statusFilter = document.getElementById('clients-status-filter');
+  if (statusFilter) statusFilter.addEventListener('change', () => filterClients());
   lucide.createIcons();
 }
 
@@ -98,16 +108,22 @@ function clientRow(c) {
   </tr>`;
 }
 
-function filterClientsTable(query) {
-  const q = query.toLowerCase();
-  const filtered = _clientsCache.filter(c => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q));
-  document.getElementById('clients-tbody').innerHTML = filtered.map(c => clientRow(c)).join('');
-  lucide.createIcons();
-}
-
-function filterClientsByStatus(status) {
-  const filtered = status === 'All Status' ? _clientsCache : _clientsCache.filter(c => c.status === status);
-  document.getElementById('clients-tbody').innerHTML = filtered.map(c => clientRow(c)).join('');
+// ADDED BY TEAM - Search & Filter: combined filtering — search text AND status filter applied together
+function filterClients() {
+  const searchEl = document.getElementById('clients-search');
+  const statusEl = document.getElementById('clients-status-filter');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
+  // Fall back to "All Status" when the select has no value yet (defensive default)
+  const status = statusEl && statusEl.value ? statusEl.value : 'All Status';
+  const filtered = _clientsCache.filter(c => {
+    const matchesSearch = !q || (c.name || '').toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q) || (c.phone || '').toLowerCase().includes(q);
+    const matchesStatus = status === 'All Status' || (c.status || 'Active') === status;
+    return matchesSearch && matchesStatus;
+  });
+  const tbody = document.getElementById('clients-tbody');
+  if (tbody) tbody.innerHTML = filtered.map(c => clientRow(c)).join('');
+  const countEl = document.getElementById('clients-count');
+  if (countEl) countEl.textContent = `Showing ${filtered.length} client(s)`;
   lucide.createIcons();
 }
 

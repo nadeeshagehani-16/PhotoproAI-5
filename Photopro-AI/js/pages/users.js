@@ -4,6 +4,7 @@ let _usersCache = [];
 const _USER_EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const _USER_PHONE_RE = /^\+?[\d\s\-().]{7,20}$/;
 
+// ADDED BY TEAM - Form Validation: validates user create/edit form (required fields, email format, password length, phone format)
 function _validateUserForm(data) {
   const errors = [];
   if (!data.name || data.name.trim().length < 2) errors.push('Full name is required (min 2 characters).');
@@ -55,7 +56,20 @@ function renderUsersTable(users) {
   const content = document.getElementById('users-content');
   content.classList.remove('hidden');
   content.innerHTML = `
-    ${searchFilter('Search users by name, email...', ['All Roles', 'Admin', 'Staff', 'Customer'])}
+    <!-- ADDED BY TEAM - Search & Filter: search box + role and status dropdowns (applied together) -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+      <div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+        <input id="users-search" type="text" placeholder="Search users by name or email..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition" />
+      </div>
+      <div class="flex gap-2">
+        <select id="users-role-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Roles</option><option>Admin</option><option>Staff</option><option>Customer</option>
+        </select>
+        <select id="users-status-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Status</option><option>Active</option><option>Inactive</option>
+        </select>
+      </div>
+    </div>
     <div class="table-wrap">
       <table class="data-table">
         <thead><tr><th>User</th><th>Email</th><th>Phone</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
@@ -63,14 +77,15 @@ function renderUsersTable(users) {
       </table>
     </div>
     <div class="flex items-center justify-between mt-4 text-sm text-text-secondary">
-      <span>Showing ${users.length} user(s)</span>
+      <span id="users-count">Showing ${users.length} user(s)</span>
     </div>`;
-  // Wire search
-  const searchInput = content.querySelector('input[type="text"]');
-  if (searchInput) searchInput.addEventListener('input', () => filterUsers(searchInput.value));
-  // Wire role filter
-  const roleFilter = content.querySelectorAll('select')[0];
-  if (roleFilter) roleFilter.addEventListener('change', () => filterUsersByRole(roleFilter.value));
+  // ADDED BY TEAM - Search & Filter: wire search input, role and status dropdowns to the combined filter
+  const searchInput = document.getElementById('users-search');
+  if (searchInput) searchInput.addEventListener('input', () => filterUsers());
+  const roleFilter = document.getElementById('users-role-filter');
+  if (roleFilter) roleFilter.addEventListener('change', () => filterUsers());
+  const statusFilter = document.getElementById('users-status-filter');
+  if (statusFilter) statusFilter.addEventListener('change', () => filterUsers());
   lucide.createIcons();
 }
 
@@ -92,16 +107,25 @@ function userRow(u) {
   </tr>`;
 }
 
-function filterUsers(query) {
-  const q = query.toLowerCase();
-  const filtered = _usersCache.filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
-  document.getElementById('users-tbody').innerHTML = filtered.map(u => userRow(u)).join('');
-  lucide.createIcons();
-}
-
-function filterUsersByRole(role) {
-  const filtered = role === 'All Roles' ? _usersCache : _usersCache.filter(u => u.role === role);
-  document.getElementById('users-tbody').innerHTML = filtered.map(u => userRow(u)).join('');
+// ADDED BY TEAM - Search & Filter: combined filtering — search text, role AND status filters applied together
+function filterUsers() {
+  const searchEl = document.getElementById('users-search');
+  const roleEl = document.getElementById('users-role-filter');
+  const statusEl = document.getElementById('users-status-filter');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
+  // Fall back to "All" options when the selects have no value yet (defensive defaults)
+  const role = roleEl && roleEl.value ? roleEl.value : 'All Roles';
+  const status = statusEl && statusEl.value ? statusEl.value : 'All Status';
+  const filtered = _usersCache.filter(u => {
+    const matchesSearch = !q || (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
+    const matchesRole = role === 'All Roles' || u.role === role;
+    const matchesStatus = status === 'All Status' || (u.isActive !== false ? 'Active' : 'Inactive') === status;
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+  const tbody = document.getElementById('users-tbody');
+  if (tbody) tbody.innerHTML = filtered.map(u => userRow(u)).join('');
+  const countEl = document.getElementById('users-count');
+  if (countEl) countEl.textContent = `Showing ${filtered.length} user(s)`;
   lucide.createIcons();
 }
 
