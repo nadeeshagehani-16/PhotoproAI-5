@@ -1,6 +1,7 @@
 // Equipment Management Page
 let _equipmentCache = [];
 
+// ADDED BY TEAM - Form Validation: validates equipment create/edit form (required fields, non-negative price, length limits)
 function _validateEquipmentForm(data) {
   const errors = [];
   if (!data.name || data.name.trim().length < 2) errors.push('Name is required (min 2 characters).');
@@ -84,7 +85,20 @@ function renderEquipmentTable(equipment) {
   const content = document.getElementById('equipment-content');
   content.classList.remove('hidden');
   content.innerHTML = `
-    ${searchFilter('Search equipment by name, brand, model...', ['All Categories', 'Camera', 'Lens', 'Lighting', 'Tripod', 'Audio', 'Accessory'], ['All Status', 'Available', 'Rented', 'Under Maintenance'])}
+    <!-- ADDED BY TEAM - Search & Filter: search box + category and availability dropdowns (applied together) -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+      <div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+        <input id="equipment-search" type="text" placeholder="Search equipment by name, brand, model or serial no..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition" />
+      </div>
+      <div class="flex gap-2">
+        <select id="equipment-category-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Categories</option><option>Camera</option><option>Lens</option><option>Lighting</option><option>Tripod</option><option>Audio</option><option>Accessory</option>
+        </select>
+        <select id="equipment-availability-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Status</option><option>Available</option><option>Rented</option><option>Under Maintenance</option>
+        </select>
+      </div>
+    </div>
     <div class="table-wrap">
       <table class="data-table">
         <thead><tr><th>Equipment</th><th>Category</th><th>Price/Day</th><th>Condition</th><th>Serial No.</th><th>Availability</th><th>Actions</th></tr></thead>
@@ -92,30 +106,35 @@ function renderEquipmentTable(equipment) {
       </table>
     </div>
     <div class="flex items-center justify-between mt-4 text-sm text-text-secondary">
-      <span>Showing ${equipment.length} item(s)</span>
+      <span id="equipment-count">Showing ${equipment.length} item(s)</span>
     </div>`;
-  // Wire search
-  const searchInput = content.querySelector('input[type="text"]');
-  if (searchInput) searchInput.addEventListener('input', () => filterEquipmentTable(searchInput.value));
-  // Wire filters
-  const selects = content.querySelectorAll('select');
-  if (selects[0]) selects[0].addEventListener('change', applyEquipmentFilters);
-  if (selects[1]) selects[1].addEventListener('change', applyEquipmentFilters);
+  // ADDED BY TEAM - Search & Filter: wire search input and both dropdowns to the combined filter
+  const searchInput = document.getElementById('equipment-search');
+  if (searchInput) searchInput.addEventListener('input', applyEquipmentFilters);
+  const categorySel = document.getElementById('equipment-category-filter');
+  if (categorySel) categorySel.addEventListener('change', applyEquipmentFilters);
+  const availSel = document.getElementById('equipment-availability-filter');
+  if (availSel) availSel.addEventListener('change', applyEquipmentFilters);
   lucide.createIcons();
 }
 
+// ADDED BY TEAM - Search & Filter: combined filtering — search text, category AND availability applied together
 function applyEquipmentFilters() {
-  const content = document.getElementById('equipment-content');
-  const searchInput = content.querySelector('input[type="text"]');
-  const selects = content.querySelectorAll('select');
-  const q = (searchInput ? searchInput.value : '').toLowerCase();
-  const category = selects[0] ? selects[0].value : 'All Categories';
-  const status = selects[1] ? selects[1].value : 'All Status';
+  const searchEl = document.getElementById('equipment-search');
+  const catEl = document.getElementById('equipment-category-filter');
+  const availEl = document.getElementById('equipment-availability-filter');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
+  // Fall back to "All" options when the selects have no value yet (defensive defaults)
+  const category = catEl && catEl.value ? catEl.value : 'All Categories';
+  const status = availEl && availEl.value ? availEl.value : 'All Status';
   let filtered = _equipmentCache;
-  if (q) filtered = filtered.filter(e => e.name.toLowerCase().includes(q) || e.brand.toLowerCase().includes(q) || e.model.toLowerCase().includes(q) || (e.serialNumber || '').toLowerCase().includes(q));
+  if (q) filtered = filtered.filter(e => (e.name || '').toLowerCase().includes(q) || (e.brand || '').toLowerCase().includes(q) || (e.model || '').toLowerCase().includes(q) || (e.serialNumber || '').toLowerCase().includes(q));
   if (category !== 'All Categories') filtered = filtered.filter(e => e.category === category);
   if (status !== 'All Status') filtered = filtered.filter(e => e.availability === status);
-  document.getElementById('equipment-tbody').innerHTML = filtered.map(e => equipmentRow(e)).join('');
+  const tbody = document.getElementById('equipment-tbody');
+  if (tbody) tbody.innerHTML = filtered.map(e => equipmentRow(e)).join('');
+  const countEl = document.getElementById('equipment-count');
+  if (countEl) countEl.textContent = `Showing ${filtered.length} item(s)`;
   lucide.createIcons();
 }
 

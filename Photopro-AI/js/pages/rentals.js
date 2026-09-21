@@ -22,11 +22,13 @@ function _rentalDateInputVal(d) {
   return `${y}-${m}-${day}`;
 }
 
+// ADDED BY TEAM - Form Validation: validates rental create/edit form (required fields, non-negative cost/deposit, date order, length limits)
 function _validateRentalForm(data, isEdit = false) {
   const errors = [];
   const today = _rentalTodayStr();
   if (!data.customerId) errors.push('Please select a customer.');
   if (!data.equipmentId) errors.push('Please select equipment.');
+  // ADDED BY TEAM - Booking Date Validation: reject past dates (today/future only) and enforce end-after-start
   if (!data.startDate) errors.push('Start date is required.');
   else if (data.startDate < today) errors.push('Start date cannot be in the past. Please choose today or a future date.');
   if (!data.endDate) errors.push('End date is required.');
@@ -170,7 +172,20 @@ function renderRentalsTable(rentals) {
   const content = document.getElementById('rentals-content');
   content.classList.remove('hidden');
   content.innerHTML = `
-    ${searchFilter('Search rentals by customer, equipment...', ['All Status', 'Pending', 'Active', 'Returned', 'Overdue', 'Cancelled'])}
+    <!-- ADDED BY TEAM - Search & Filter: search box + status and payment status dropdowns (applied together) -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+      <div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+        <input id="rentals-search" type="text" placeholder="Search rentals by customer or equipment..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition" />
+      </div>
+      <div class="flex gap-2">
+        <select id="rentals-status-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Status</option><option>Pending</option><option>Active</option><option>Returned</option><option>Overdue</option><option>Cancelled</option>
+        </select>
+        <select id="rentals-payment-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Payments</option><option>Unpaid</option><option>Paid</option><option>Refunded</option>
+        </select>
+      </div>
+    </div>
     <div class="table-wrap">
       <table class="data-table">
         <thead><tr><th>Customer</th><th>Equipment</th><th>Rental Period</th><th>Total Cost</th><th>Deposit</th><th>Status</th><th>Payment</th><th>Actions</th></tr></thead>
@@ -178,33 +193,46 @@ function renderRentalsTable(rentals) {
       </table>
     </div>
     <div class="flex items-center justify-between mt-4 text-sm text-text-secondary">
-      <span>Showing ${rentals.length} rental(s)</span>
+      <span id="rentals-count">Showing ${rentals.length} rental(s)</span>
     </div>`;
-  // Wire search
-  const searchInput = content.querySelector('input[type="text"]');
-  if (searchInput) searchInput.addEventListener('input', () => filterRentalsTable(searchInput.value));
-  // Wire status filter
-  const statusFilter = content.querySelectorAll('select')[0];
-  if (statusFilter) statusFilter.addEventListener('change', () => filterRentalsByStatus(statusFilter.value));
+  // ADDED BY TEAM - Search & Filter: wire search input and both dropdowns to the combined filter
+  const searchInput = document.getElementById('rentals-search');
+  if (searchInput) searchInput.addEventListener('input', applyRentalFilters);
+  const statusSel = document.getElementById('rentals-status-filter');
+  if (statusSel) statusSel.addEventListener('change', applyRentalFilters);
+  const paySel = document.getElementById('rentals-payment-filter');
+  if (paySel) paySel.addEventListener('change', applyRentalFilters);
   lucide.createIcons();
 }
 
-function filterRentalsTable(query) {
-  const q = query.toLowerCase();
+// ADDED BY TEAM - Search & Filter: combined filtering — search text, status AND payment status applied together
+function applyRentalFilters() {
+  const searchEl = document.getElementById('rentals-search');
+  const statusEl = document.getElementById('rentals-status-filter');
+  const payEl = document.getElementById('rentals-payment-filter');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
+  // Fall back to "All" options when the selects have no value yet (defensive defaults)
+  const status = statusEl && statusEl.value ? statusEl.value : 'All Status';
+  const payment = payEl && payEl.value ? payEl.value : 'All Payments';
   const filtered = _rentalsCache.filter(r => {
-    const customer = r.customerId && typeof r.customerId === 'object' ? r.customerId.name : '';
-    const equipment = r.equipmentId && typeof r.equipmentId === 'object' ? r.equipmentId.name : '';
-    return customer.toLowerCase().includes(q) || equipment.toLowerCase().includes(q);
+    const customer = r.customerId && typeof r.customerId === 'object' ? (r.customerId.name || '') : '';
+    const email = r.customerId && typeof r.customerId === 'object' ? (r.customerId.email || '') : '';
+    const equipment = r.equipmentId && typeof r.equipmentId === 'object' ? (r.equipmentId.name || '') : '';
+    const matchesSearch = !q || customer.toLowerCase().includes(q) || email.toLowerCase().includes(q) || equipment.toLowerCase().includes(q);
+    const matchesStatus = status === 'All Status' || r.status === status;
+    const matchesPayment = payment === 'All Payments' || (r.paymentStatus || 'Unpaid') === payment;
+    return matchesSearch && matchesStatus && matchesPayment;
   });
-  document.getElementById('rentals-tbody').innerHTML = filtered.map(r => rentalRow(r)).join('');
+  const tbody = document.getElementById('rentals-tbody');
+  if (tbody) tbody.innerHTML = filtered.map(r => rentalRow(r)).join('');
+  const countEl = document.getElementById('rentals-count');
+  if (countEl) countEl.textContent = `Showing ${filtered.length} rental(s)`;
   lucide.createIcons();
 }
 
-function filterRentalsByStatus(status) {
-  const filtered = status === 'All Status' ? _rentalsCache : _rentalsCache.filter(r => r.status === status);
-  document.getElementById('rentals-tbody').innerHTML = filtered.map(r => rentalRow(r)).join('');
-  lucide.createIcons();
-}
+// Kept for backward compatibility with any existing calls
+function filterRentalsTable(query) { applyRentalFilters(); }
+function filterRentalsByStatus(status) { applyRentalFilters(); }
 
 // Calculate total cost based on equipment price and rental days
 function calculateRentalCost() {
@@ -231,6 +259,7 @@ function openAddRentalModal() {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Customer *</label><select id="ar-customer" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option value="">Select customer</option>${customerOptions}</select></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Equipment *</label><select id="ar-equipment" required onchange="calculateRentalCost()" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option value="">Select equipment</option>${equipmentOptions}</select></div>
       </div>
+      <!-- ADDED BY TEAM - Booking Date Validation: min attribute blocks past dates in the date picker -->
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Date *</label><input id="ar-start" type="date" required min="${_rentalTodayStr()}" onchange="calculateRentalCost()" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">End Date *</label><input id="ar-end" type="date" required min="${_rentalTodayStr()}" onchange="calculateRentalCost()" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
@@ -312,6 +341,7 @@ function openEditRentalModal(id) {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Customer *</label><select id="er-customer" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">${customerOptions}</select></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Equipment *</label><select id="er-equipment" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">${equipmentOptions}</select></div>
       </div>
+      <!-- ADDED BY TEAM - Booking Date Validation: min attribute blocks past dates in the date picker -->
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Start Date *</label><input id="er-start" type="date" required min="${todayStr}" value="${startVal}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">End Date *</label><input id="er-end" type="date" required min="${todayStr}" value="${endVal}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
