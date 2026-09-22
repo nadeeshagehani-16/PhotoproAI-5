@@ -3,6 +3,8 @@ let _svcBookingsCache = [];
 let _svcCustomers = [];
 let _svcPhotographers = [];
 let _svcPackages = [];
+// ADDED BY TEAM - Search & Filter: currently selected status tab (combined with search + event filter)
+let _svcStatusTab = 'All';
 
 async function renderBookings() {
   const el = document.getElementById('page-content');
@@ -68,8 +70,21 @@ function renderSvcBookingsTable(bookings) {
   document.getElementById('svc-loading').classList.add('hidden');
   const content = document.getElementById('svc-content');
   content.classList.remove('hidden');
+  // Fresh render resets the active status tab to "All"
+  _svcStatusTab = 'All';
   const statusTabs = ['All','Confirmed','Pending','In Progress','Completed','Cancelled'];
   content.innerHTML = `
+    <!-- ADDED BY TEAM - Search & Filter: search box + event type dropdown (applied together with the status tabs) -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+      <div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+        <input id="svc-search" type="text" placeholder="Search bookings by client, event, location, photographer..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition" />
+      </div>
+      <div class="flex gap-2">
+        <select id="svc-event-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Events</option><option>Wedding</option><option>Birthday</option><option>Corporate</option><option>Portrait</option><option>Event</option><option>Fashion</option>
+        </select>
+      </div>
+    </div>
     <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
       ${statusTabs.map((s,i) => `<button onclick="filterSvcByStatus('${s}')" class="svc-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ${i===0?'bg-primary text-white':'bg-white border border-border-light text-text-secondary hover:bg-hover-light'}">${s}</button>`).join('')}
     </div>
@@ -79,17 +94,44 @@ function renderSvcBookingsTable(bookings) {
         <tbody id="svc-tbody">${bookings.map(b => svcBookingRow(b)).join('')}</tbody>
       </table>
     </div>
-    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span>Showing ${bookings.length} booking(s)</span></div>`;
+    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span id="svc-count">Showing ${bookings.length} booking(s)</span></div>`;
+  // ADDED BY TEAM - Search & Filter: wire search input and event dropdown to the combined filter
+  const searchInput = document.getElementById('svc-search');
+  if (searchInput) searchInput.addEventListener('input', () => applySvcFilters());
+  const eventFilter = document.getElementById('svc-event-filter');
+  if (eventFilter) eventFilter.addEventListener('change', () => applySvcFilters());
   lucide.createIcons();
 }
 
 function filterSvcByStatus(status) {
+  _svcStatusTab = status;
   document.querySelectorAll('.svc-tab').forEach(t => {
     t.className = 'svc-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ' +
       (t.textContent.trim() === status ? 'bg-primary text-white' : 'bg-white border border-border-light text-text-secondary hover:bg-hover-light');
   });
-  const filtered = status === 'All' ? _svcBookingsCache : _svcBookingsCache.filter(b => b.status === status);
-  document.getElementById('svc-tbody').innerHTML = filtered.map(b => svcBookingRow(b)).join('');
+  applySvcFilters();
+}
+
+// ADDED BY TEAM - Search & Filter: combined filtering — search text, event type AND active status tab applied together
+function applySvcFilters() {
+  const searchEl = document.getElementById('svc-search');
+  const eventEl = document.getElementById('svc-event-filter');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
+  // Fall back to "All" options when the select has no value yet (defensive default)
+  const event = eventEl && eventEl.value ? eventEl.value : 'All Events';
+  const filtered = _svcBookingsCache.filter(b => {
+    const clientName = b.customerId?.name || b.client || '';
+    const phName = b.photographerId?.name || b.photographer || '';
+    const pkgName = b.packageId?.name || b.package || '';
+    const matchesSearch = !q || [b.event, clientName, b.location, phName, pkgName].some(v => (v || '').toLowerCase().includes(q));
+    const matchesEvent = event === 'All Events' || b.event === event;
+    const matchesStatus = _svcStatusTab === 'All' || b.status === _svcStatusTab;
+    return matchesSearch && matchesEvent && matchesStatus;
+  });
+  const tbody = document.getElementById('svc-tbody');
+  if (tbody) tbody.innerHTML = filtered.map(b => svcBookingRow(b)).join('');
+  const countEl = document.getElementById('svc-count');
+  if (countEl) countEl.textContent = `Showing ${filtered.length} booking(s)`;
   lucide.createIcons();
 }
 
