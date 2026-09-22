@@ -1,25 +1,67 @@
 // Bookings Page
+// ADDED BY TEAM - Search & Filter: currently selected status tab (combined with search box)
+let _bkStatusTab = 'All';
+
 function renderBookings() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
     ${pageHeader('Bookings', 'Manage all photography sessions and events', `<button onclick="openAddBookingModal()" class="btn-gold px-5 py-2.5 text-sm flex items-center gap-2"><i data-lucide="plus" class="w-4 h-4"></i> New Booking</button>`)}
+    <!-- ADDED BY TEAM - Search & Filter: search box (applied together with the status tabs) -->
+    <div class="relative mb-6"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+      <input id="bk-search" type="text" placeholder="Search bookings by client, event, location or photographer..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition" />
+    </div>
     <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
-      ${['All','Confirmed','Pending','In Progress','Completed','Cancelled'].map((s,i) => `<button class="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ${i===0?'bg-primary text-white':'bg-white border border-border-light text-text-secondary hover:bg-hover-light'}">${s}</button>`).join('')}
+      ${['All','Confirmed','Pending','In Progress','Completed','Cancelled'].map((s,i) => `<button onclick="filterBookingsByStatus('${s}')" class="bk-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ${i===0?'bg-primary text-white':'bg-white border border-border-light text-text-secondary hover:bg-hover-light'}">${s}</button>`).join('')}
     </div>
     <div class="table-wrap">
       <table class="data-table"><thead><tr><th>ID</th><th>Client</th><th>Event</th><th>Date & Time</th><th>Location</th><th>Photographer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>${MOCK.bookings.map(b => `<tr>
-        <td class="font-mono text-xs text-text-secondary">#${b.id}</td>
-        <td><div class="flex items-center gap-2"><img src="${MOCK.clients.find(c=>c.id===b.clientId)?.avatar||'https://i.pravatar.cc/32'}" class="w-8 h-8 rounded-full" /><span class="font-medium text-sm">${b.client}</span></div></td>
-        <td><span class="text-sm">${b.event}</span></td>
-        <td><div class="text-sm">${b.date}</div><div class="text-xs text-text-secondary">${b.start} – ${b.end}</div></td>
-        <td class="text-sm text-text-secondary max-w-[150px] truncate">${b.location}</td>
-        <td class="text-sm">${b.photographer}</td>
-        <td class="font-semibold text-sm">${formatCurrency(b.amount)}</td>
-        <td>${statusBadge(b.status)}</td>
-        <td>${actionBtns('booking-detail')}</td>
-      </tr>`).join('')}</tbody></table>
-    </div>`;
+      <tbody id="bk-tbody">${MOCK.bookings.map(b => bookingRow(b)).join('')}</tbody></table>
+    </div>
+    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span id="bk-count">Showing ${MOCK.bookings.length} booking(s)</span></div>`;
+  // ADDED BY TEAM - Search & Filter: wire search input to the combined filter
+  const searchInput = document.getElementById('bk-search');
+  if (searchInput) searchInput.addEventListener('input', () => applyBookingFilters());
+  lucide.createIcons();
+}
+
+// Shared booking row markup so the main table and the filtered table always render identically
+function bookingRow(b) {
+  return `<tr>
+    <td class="font-mono text-xs text-text-secondary">#${b.id}</td>
+    <td><div class="flex items-center gap-2"><img src="${MOCK.clients.find(c=>c.id===b.clientId)?.avatar||'https://i.pravatar.cc/32'}" class="w-8 h-8 rounded-full" /><span class="font-medium text-sm">${b.client}</span></div></td>
+    <td><span class="text-sm">${b.event}</span></td>
+    <td><div class="text-sm">${b.date}</div><div class="text-xs text-text-secondary">${b.start} – ${b.end}</div></td>
+    <td class="text-sm text-text-secondary max-w-[150px] truncate">${b.location}</td>
+    <td class="text-sm">${b.photographer}</td>
+    <td class="font-semibold text-sm">${formatCurrency(b.amount)}</td>
+    <td>${statusBadge(b.status)}</td>
+    <td>${actionBtns('booking-detail')}</td>
+  </tr>`;
+}
+
+// ADDED BY TEAM - Search & Filter: status tab selection (delegates to the combined filter)
+function filterBookingsByStatus(status) {
+  _bkStatusTab = status;
+  document.querySelectorAll('.bk-tab').forEach(t => {
+    t.className = 'bk-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ' +
+      (t.textContent.trim() === status ? 'bg-primary text-white' : 'bg-white border border-border-light text-text-secondary hover:bg-hover-light');
+  });
+  applyBookingFilters();
+}
+
+// ADDED BY TEAM - Search & Filter: combined filtering — search text AND active status tab applied together
+function applyBookingFilters() {
+  const searchEl = document.getElementById('bk-search');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
+  const filtered = MOCK.bookings.filter(b => {
+    const matchesSearch = !q || [b.client, b.event, b.location, b.photographer, b.package].some(v => (v || '').toLowerCase().includes(q));
+    const matchesStatus = _bkStatusTab === 'All' || b.status === _bkStatusTab;
+    return matchesSearch && matchesStatus;
+  });
+  const tbody = document.getElementById('bk-tbody');
+  if (tbody) tbody.innerHTML = filtered.map(b => bookingRow(b)).join('');
+  const countEl = document.getElementById('bk-count');
+  if (countEl) countEl.textContent = `Showing ${filtered.length} booking(s)`;
   lucide.createIcons();
 }
 
