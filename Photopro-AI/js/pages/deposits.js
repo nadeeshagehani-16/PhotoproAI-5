@@ -1,6 +1,8 @@
 // Deposits Page – Full CRUD with Refund/Forfeit
 let _depositsCache = [];
 let _depCustomers = [];
+// ADDED BY TEAM - Search & Filter: currently selected status tab (combined with the search box)
+let _depStatusTab = 'All';
 
 function _depTodayStr() {
   const d = new Date();
@@ -76,6 +78,8 @@ function renderDepositsTable(deposits) {
   document.getElementById('dep-loading').classList.add('hidden');
   const content = document.getElementById('dep-content');
   content.classList.remove('hidden');
+  // Fresh render resets the active status tab to "All"
+  _depStatusTab = 'All';
   const totalHeld = deposits.filter(d => d.status==='Held').reduce((s,d) => s + (d.amount||0), 0);
   const totalRefunded = deposits.filter(d => d.status==='Refunded').reduce((s,d) => s + (d.refundAmount||0), 0);
   content.innerHTML = `
@@ -85,6 +89,12 @@ function renderDepositsTable(deposits) {
       { label:'Total Deposits', value:deposits.length, icon:'shield', iconBg:'bg-purple-100', iconColor:'text-purple-600' },
       { label:'Forfeited', value:deposits.filter(d=>d.status==='Forfeited').length, icon:'x-circle', iconBg:'bg-red-100', iconColor:'text-red-600' },
     ])}
+    <!-- ADDED BY TEAM - Search & Filter: search box (applied together with the status tabs) -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+      <div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+        <input id="dep-search" type="text" placeholder="Search deposits by client, purpose or method..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition" />
+      </div>
+    </div>
     <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
       ${['All','Held','Refunded','Forfeited'].map((s,i) => `<button onclick="filterDepByStatus('${s}')" class="dep-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ${i===0?'bg-primary text-white':'bg-white border border-border-light text-text-secondary hover:bg-hover-light'}">${s}</button>`).join('')}
     </div>
@@ -94,17 +104,38 @@ function renderDepositsTable(deposits) {
         <tbody id="dep-tbody">${deposits.map(d => depositRow(d)).join('')}</tbody>
       </table>
     </div>
-    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span>Showing ${deposits.length} deposit(s)</span></div>`;
+    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span id="dep-count">Showing ${deposits.length} deposit(s)</span></div>`;
+  // ADDED BY TEAM - Search & Filter: wire search input to the combined filter
+  const searchInput = document.getElementById('dep-search');
+  if (searchInput) searchInput.addEventListener('input', () => applyDepFilters());
   lucide.createIcons();
 }
 
 function filterDepByStatus(status) {
+  _depStatusTab = status;
   document.querySelectorAll('.dep-tab').forEach(t => {
     t.className = 'dep-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ' +
       (t.textContent.trim() === status ? 'bg-primary text-white' : 'bg-white border border-border-light text-text-secondary hover:bg-hover-light');
   });
-  const filtered = status === 'All' ? _depositsCache : _depositsCache.filter(d => d.status === status);
-  document.getElementById('dep-tbody').innerHTML = filtered.map(d => depositRow(d)).join('');
+  applyDepFilters();
+}
+
+// ADDED BY TEAM - Search & Filter: combined filtering — search text AND active status tab applied together
+function applyDepFilters() {
+  const searchEl = document.getElementById('dep-search');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
+  const filtered = _depositsCache.filter(d => {
+    const clientName = (d.customerId?.name || d.customer || '').toLowerCase();
+    const purpose = (d.purpose || '').toLowerCase();
+    const method = (d.paymentMethod || '').toLowerCase();
+    const matchesSearch = !q || clientName.includes(q) || purpose.includes(q) || method.includes(q);
+    const matchesStatus = _depStatusTab === 'All' || d.status === _depStatusTab;
+    return matchesSearch && matchesStatus;
+  });
+  const tbody = document.getElementById('dep-tbody');
+  if (tbody) tbody.innerHTML = filtered.map(d => depositRow(d)).join('');
+  const countEl = document.getElementById('dep-count');
+  if (countEl) countEl.textContent = `Showing ${filtered.length} deposit(s)`;
   lucide.createIcons();
 }
 
