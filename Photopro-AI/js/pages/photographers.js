@@ -8,10 +8,10 @@ function _validatePhotographerForm(data) {
   if (!data.email) {
     errors.push('Email is required.');
   } else {
-    // Reject special chars like # $ % ^ & * ; standard email format check
-    const emailRegex = /^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    // ADDED BY TEAM - Form Validation: lowercase-only email format; rejects # $ spaces and uppercase letters
+    const emailRegex = /^[a-z0-9._+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
     if (!emailRegex.test(data.email)) {
-      errors.push('Please enter a valid email address (e.g. name@example.com).');
+      errors.push('Email format is invalid. Use a valid lowercase address like name@example.com (uppercase letters, spaces and characters such as # or $ are not allowed).');
     }
   }
   if (!data.specialization) errors.push('Specialization is required.');
@@ -71,75 +71,79 @@ function renderTeamGrid(photographers) {
   const content = document.getElementById('team-content');
   content.classList.remove('hidden');
   content.innerHTML = `
-    ${searchFilter('Search photographers by name, specialization...', ['All Roles','Lead Photographer','Senior Photographer','Photographer','Junior Photographer'], ['All Status','Available','On Assignment','On Leave'])}
+    <!-- ADDED BY TEAM - Search & Filter: search box + role and status dropdowns (applied together) -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+      <div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+        <input id="ph-search" type="text" placeholder="Search photographers by name, specialization..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition" />
+      </div>
+      <div class="flex gap-2">
+        <select id="ph-role-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Roles</option><option>Lead Photographer</option><option>Senior Photographer</option><option>Photographer</option><option>Junior Photographer</option>
+        </select>
+        <select id="ph-status-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Status</option><option>Available</option><option>On Assignment</option><option>On Leave</option>
+        </select>
+      </div>
+    </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="team-grid">
-      ${photographers.map(p => {
-        const pid = p._id || p.id;
-        const availDot = p.availability==='Available'?'bg-success':p.availability==='On Assignment'?'bg-blue-500':p.availability==='On Leave'?'bg-warning':'bg-gray-400';
-        return `
-        <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light card-hover text-center">
-          <div class="relative inline-block">
-            <img src="${p.avatar||'https://i.pravatar.cc/80'}" class="w-20 h-20 rounded-full mx-auto ring-4 ${p.status==='Active'?'ring-green-100':'ring-gray-100'}" alt="${p.name}" />
-            <span class="absolute bottom-0 right-0 w-5 h-5 rounded-full border-2 border-white ${availDot}"></span>
-          </div>
-          <h3 class="font-bold mt-4">${p.name}</h3>
-          <p class="text-sm text-accent font-medium">${p.role||'Photographer'}</p>
-          <p class="text-xs text-text-secondary mt-1">${p.specialization||''}</p>
-          ${p.bio ? `<p class="text-xs text-text-secondary mt-2 leading-relaxed line-clamp-2">${p.bio}</p>` : ''}
-          <div class="grid grid-cols-3 gap-2 mt-5 pt-5 border-t border-border-light text-center">
-            <div><p class="text-lg font-bold">${p.projects||0}</p><p class="text-xs text-text-secondary">Projects</p></div>
-            <div><p class="text-lg font-bold">${p.rating||'-'}</p><p class="text-xs text-text-secondary">Rating</p></div>
-            <div><p class="text-lg font-bold">${p.availability==='Available'?'Free':p.availability==='On Assignment'?'Busy':'Away'}</p><p class="text-xs text-text-secondary">Status</p></div>
-          </div>
-          <div class="flex gap-2 mt-5">
-            <button onclick="openEditPhotographerModal('${pid}')" class="btn-ghost flex-1 py-2 text-sm flex items-center justify-center gap-1.5"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Edit</button>
-            <button onclick="confirmDeletePhotographer('${pid}', '${(p.name||'').replace(/'/g,"\\'")}')" class="btn-ghost flex-1 py-2 text-sm flex items-center justify-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5 text-error"></i> Delete</button>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
-  const searchInput = content.querySelector('input[type="text"]');
+      ${photographers.map(p => photographerCard(p)).join('')}
+    </div>
+    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span id="ph-count">Showing ${photographers.length} photographer(s)</span></div>`;
+  // ADDED BY TEAM - Search & Filter: wire search input, role and status dropdowns to the combined filter
+  const searchInput = document.getElementById('ph-search');
   if (searchInput) searchInput.addEventListener('input', () => applyTeamFilters());
-  const selects = content.querySelectorAll('select');
-  if (selects[0]) selects[0].addEventListener('change', applyTeamFilters);
-  if (selects[1]) selects[1].addEventListener('change', applyTeamFilters);
+  const roleFilter = document.getElementById('ph-role-filter');
+  if (roleFilter) roleFilter.addEventListener('change', () => applyTeamFilters());
+  const statusFilter = document.getElementById('ph-status-filter');
+  if (statusFilter) statusFilter.addEventListener('change', () => applyTeamFilters());
   lucide.createIcons();
 }
 
+// Shared photographer card markup so the main grid and the filtered grid always render identically
+function photographerCard(p) {
+  const pid = p._id || p.id;
+  const availDot = p.availability==='Available'?'bg-success':p.availability==='On Assignment'?'bg-blue-500':p.availability==='On Leave'?'bg-warning':'bg-gray-400';
+  return `
+  <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light card-hover text-center">
+    <div class="relative inline-block">
+      <img src="${p.avatar||'https://i.pravatar.cc/80'}" class="w-20 h-20 rounded-full mx-auto ring-4 ${p.status==='Active'?'ring-green-100':'ring-gray-100'}" alt="${p.name}" />
+      <span class="absolute bottom-0 right-0 w-5 h-5 rounded-full border-2 border-white ${availDot}"></span>
+    </div>
+    <h3 class="font-bold mt-4">${p.name}</h3>
+    <p class="text-sm text-accent font-medium">${p.role||'Photographer'}</p>
+    <p class="text-xs text-text-secondary mt-1">${p.specialization||''}</p>
+    ${p.bio ? `<p class="text-xs text-text-secondary mt-2 leading-relaxed line-clamp-2">${p.bio}</p>` : ''}
+    <div class="grid grid-cols-3 gap-2 mt-5 pt-5 border-t border-border-light text-center">
+      <div><p class="text-lg font-bold">${p.projects||0}</p><p class="text-xs text-text-secondary">Projects</p></div>
+      <div><p class="text-lg font-bold">${p.rating||'-'}</p><p class="text-xs text-text-secondary">Rating</p></div>
+      <div><p class="text-lg font-bold">${p.availability==='Available'?'Free':p.availability==='On Assignment'?'Busy':'Away'}</p><p class="text-xs text-text-secondary">Status</p></div>
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button onclick="openEditPhotographerModal('${pid}')" class="btn-ghost flex-1 py-2 text-sm flex items-center justify-center gap-1.5"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Edit</button>
+      <button onclick="confirmDeletePhotographer('${pid}', '${(p.name||'').replace(/'/g,"\\'")}')" class="btn-ghost flex-1 py-2 text-sm flex items-center justify-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5 text-error"></i> Delete</button>
+    </div>
+  </div>`;
+}
+
+// ADDED BY TEAM - Search & Filter: combined filtering — search text, role AND status filters applied together
 function applyTeamFilters() {
-  const content = document.getElementById('team-content');
-  const q = (content.querySelector('input[type="text"]')?.value || '').toLowerCase();
-  const selects = content.querySelectorAll('select');
-  const role = selects[0]?.value || 'All Roles';
-  const avail = selects[1]?.value || 'All Status';
-  let filtered = _photographersCache;
-  if (q) filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || (p.specialization||'').toLowerCase().includes(q));
-  if (role !== 'All Roles') filtered = filtered.filter(p => p.role === role);
-  if (avail !== 'All Status') filtered = filtered.filter(p => p.availability === avail);
-  document.getElementById('team-grid').innerHTML = filtered.map(p => {
-    const pid = p._id || p.id;
-    const availDot = p.availability==='Available'?'bg-success':p.availability==='On Assignment'?'bg-blue-500':p.availability==='On Leave'?'bg-warning':'bg-gray-400';
-    return `
-    <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light card-hover text-center">
-      <div class="relative inline-block">
-        <img src="${p.avatar||'https://i.pravatar.cc/80'}" class="w-20 h-20 rounded-full mx-auto ring-4 ${p.status==='Active'?'ring-green-100':'ring-gray-100'}" alt="${p.name}" />
-        <span class="absolute bottom-0 right-0 w-5 h-5 rounded-full border-2 border-white ${availDot}"></span>
-      </div>
-      <h3 class="font-bold mt-4">${p.name}</h3>
-      <p class="text-sm text-accent font-medium">${p.role||'Photographer'}</p>
-      <p class="text-xs text-text-secondary mt-1">${p.specialization||''}</p>
-      ${p.bio ? `<p class="text-xs text-text-secondary mt-2 leading-relaxed line-clamp-2">${p.bio}</p>` : ''}
-      <div class="grid grid-cols-3 gap-2 mt-5 pt-5 border-t border-border-light text-center">
-        <div><p class="text-lg font-bold">${p.projects||0}</p><p class="text-xs text-text-secondary">Projects</p></div>
-        <div><p class="text-lg font-bold">${p.rating||'-'}</p><p class="text-xs text-text-secondary">Rating</p></div>
-        <div><p class="text-lg font-bold">${p.availability==='Available'?'Free':'Away'}</p><p class="text-xs text-text-secondary">Status</p></div>
-      </div>
-      <div class="flex gap-2 mt-5">
-        <button onclick="openEditPhotographerModal('${pid}')" class="btn-ghost flex-1 py-2 text-sm flex items-center justify-center gap-1.5"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Edit</button>
-        <button onclick="confirmDeletePhotographer('${pid}', '${(p.name||'').replace(/'/g,"\\'")}')" class="btn-ghost flex-1 py-2 text-sm flex items-center justify-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5 text-error"></i> Delete</button>
-      </div>
-    </div>`;
-  }).join('');
+  const searchEl = document.getElementById('ph-search');
+  const roleEl = document.getElementById('ph-role-filter');
+  const statusEl = document.getElementById('ph-status-filter');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
+  // Fall back to "All" options when the selects have no value yet (defensive defaults)
+  const role = roleEl && roleEl.value ? roleEl.value : 'All Roles';
+  const status = statusEl && statusEl.value ? statusEl.value : 'All Status';
+  const filtered = _photographersCache.filter(p => {
+    const matchesSearch = !q || (p.name || '').toLowerCase().includes(q) || (p.specialization || '').toLowerCase().includes(q);
+    const matchesRole = role === 'All Roles' || (p.role || 'Photographer') === role;
+    const matchesStatus = status === 'All Status' || p.availability === status;
+    return matchesSearch && matchesRole && matchesStatus;
+  });
+  const grid = document.getElementById('team-grid');
+  if (grid) grid.innerHTML = filtered.map(p => photographerCard(p)).join('');
+  const countEl = document.getElementById('ph-count');
+  if (countEl) countEl.textContent = `Showing ${filtered.length} photographer(s)`;
   lucide.createIcons();
 }
 

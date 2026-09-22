@@ -63,30 +63,21 @@ function renderPackagesGrid(packages) {
   const content = document.getElementById('packages-content');
   content.classList.remove('hidden');
   content.innerHTML = `
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      ${packages.map(p => {
-        const pid = p._id || p.id;
-        return `
-        <div class="relative bg-white rounded-2xl shadow-card border ${p.popular?'border-accent ring-2 ring-accent/20':'border-border-light'} overflow-hidden card-hover">
-          ${p.popular?'<div class="bg-accent text-primary text-xs font-bold text-center py-1.5 uppercase tracking-wider">Most Popular</div>':''}
-          <div class="p-6">
-            <h3 class="text-xl font-bold">${p.name}</h3>
-            ${p.description ? `<p class="text-sm text-text-secondary mt-1">${p.description}</p>` : ''}
-            <div class="mt-3 mb-6"><span class="text-4xl font-bold">${formatCurrency(p.price)}</span><span class="text-text-secondary text-sm"> / session</span></div>
-            <div class="space-y-3 mb-6">${(p.features||[]).map(f=>`<div class="flex items-center gap-2.5 text-sm"><i data-lucide="check" class="w-4 h-4 text-success flex-shrink-0"></i><span>${f}</span></div>`).join('')}</div>
-            <div class="flex gap-2">
-              <button onclick="openEditPackageModal('${pid}')" class="${p.popular?'btn-gold':'btn-dark'} flex-1 py-2.5 text-sm">Edit</button>
-              <button onclick="confirmDeletePackage('${pid}', '${(p.name||'').replace(/'/g,"\\'")}')" class="btn-ghost p-2.5"><i data-lucide="trash-2" class="w-4 h-4 text-error"></i></button>
-            </div>
-          </div>
-          <div class="px-6 py-3 bg-surface text-xs text-text-secondary flex items-center gap-4">
-            <span><i data-lucide="clock" class="w-3.5 h-3.5 inline mr-1"></i>${p.duration}</span>
-            <span><i data-lucide="image" class="w-3.5 h-3.5 inline mr-1"></i>${p.photos} photos</span>
-            <span><i data-lucide="users" class="w-3.5 h-3.5 inline mr-1"></i>${p.photographers}</span>
-          </div>
-        </div>`;
-      }).join('')}
+    <!-- ADDED BY TEAM - Search & Filter: search box + popularity dropdown (applied together) -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+      <div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+        <input id="pkg-search" type="text" placeholder="Search packages by name, description or features..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition" />
+      </div>
+      <div class="flex gap-2">
+        <select id="pkg-type-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Packages</option><option>Most Popular</option><option>Standard</option>
+        </select>
+      </div>
     </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="packages-grid">
+      ${packages.map(p => packageCard(p)).join('')}
+    </div>
+    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span id="pkg-count">Showing ${packages.length} package(s)</span></div>
     <div class="mt-8 bg-white rounded-2xl p-6 shadow-card border border-border-light">
       <h3 class="font-bold text-lg mb-4">Add-on Services</h3>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -98,6 +89,55 @@ function renderPackagesGrid(packages) {
         </div>`).join('')}
       </div>
     </div>`;
+  // ADDED BY TEAM - Search & Filter: wire search input and popularity dropdown to the combined filter
+  const searchInput = document.getElementById('pkg-search');
+  if (searchInput) searchInput.addEventListener('input', () => filterPackages());
+  const typeFilter = document.getElementById('pkg-type-filter');
+  if (typeFilter) typeFilter.addEventListener('change', () => filterPackages());
+  lucide.createIcons();
+}
+
+// Shared package card markup so the main grid and the filtered grid always render identically
+function packageCard(p) {
+  const pid = p._id || p.id;
+  return `
+  <div class="relative bg-white rounded-2xl shadow-card border ${p.popular?'border-accent ring-2 ring-accent/20':'border-border-light'} overflow-hidden card-hover">
+    ${p.popular?'<div class="bg-accent text-primary text-xs font-bold text-center py-1.5 uppercase tracking-wider">Most Popular</div>':''}
+    <div class="p-6">
+      <h3 class="text-xl font-bold">${p.name}</h3>
+      ${p.description ? `<p class="text-sm text-text-secondary mt-1">${p.description}</p>` : ''}
+      <div class="mt-3 mb-6"><span class="text-4xl font-bold">${formatCurrency(p.price)}</span><span class="text-text-secondary text-sm"> / session</span></div>
+      <div class="space-y-3 mb-6">${(p.features||[]).map(f=>`<div class="flex items-center gap-2.5 text-sm"><i data-lucide="check" class="w-4 h-4 text-success flex-shrink-0"></i><span>${f}</span></div>`).join('')}</div>
+      <div class="flex gap-2">
+        <button onclick="openEditPackageModal('${pid}')" class="${p.popular?'btn-gold':'btn-dark'} flex-1 py-2.5 text-sm">Edit</button>
+        <button onclick="confirmDeletePackage('${pid}', '${(p.name||'').replace(/'/g,"\\'")}')" class="btn-ghost p-2.5"><i data-lucide="trash-2" class="w-4 h-4 text-error"></i></button>
+      </div>
+    </div>
+    <div class="px-6 py-3 bg-surface text-xs text-text-secondary flex items-center gap-4">
+      <span><i data-lucide="clock" class="w-3.5 h-3.5 inline mr-1"></i>${p.duration}</span>
+      <span><i data-lucide="image" class="w-3.5 h-3.5 inline mr-1"></i>${p.photos} photos</span>
+      <span><i data-lucide="users" class="w-3.5 h-3.5 inline mr-1"></i>${p.photographers}</span>
+    </div>
+  </div>`;
+}
+
+// ADDED BY TEAM - Search & Filter: combined filtering — search text AND popularity filter applied together
+function filterPackages() {
+  const searchEl = document.getElementById('pkg-search');
+  const typeEl = document.getElementById('pkg-type-filter');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
+  // Fall back to "All" option when the select has no value yet (defensive default)
+  const type = typeEl && typeEl.value ? typeEl.value : 'All Packages';
+  const filtered = _packagesCache.filter(p => {
+    const features = (p.features || []).join(' ').toLowerCase();
+    const matchesSearch = !q || (p.name || '').toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q) || features.includes(q);
+    const matchesType = type === 'All Packages' || (type === 'Most Popular' ? !!p.popular : !p.popular);
+    return matchesSearch && matchesType;
+  });
+  const grid = document.getElementById('packages-grid');
+  if (grid) grid.innerHTML = filtered.map(p => packageCard(p)).join('');
+  const countEl = document.getElementById('pkg-count');
+  if (countEl) countEl.textContent = `Showing ${filtered.length} package(s)`;
   lucide.createIcons();
 }
 
