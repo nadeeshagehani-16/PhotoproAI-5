@@ -72,34 +72,74 @@ function renderStudiosGrid(studios) {
   const content = document.getElementById('studio-content');
   content.classList.remove('hidden');
   content.innerHTML = `
+    <!-- ADDED BY TEAM - Search & Filter: search box + availability dropdown (applied together) -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+      <div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+        <input id="studio-search" type="text" placeholder="Search studios by name, location, description or amenities..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition" />
+      </div>
+      <div class="flex gap-2">
+        <select id="studio-avail-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Status</option><option>Available</option><option>Booked</option><option>Under Maintenance</option>
+        </select>
+      </div>
+    </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="studios-grid">
-      ${studios.map(s => {
-        const sid = s._id || s.id;
-        const availColor = s.availability==='Available'?'text-success bg-green-50':s.availability==='Booked'?'text-blue-700 bg-blue-50':'text-warning bg-amber-50';
-        return `
-        <div class="bg-white rounded-2xl shadow-card border border-border-light overflow-hidden card-hover">
-          <div class="h-44 bg-gray-100 relative overflow-hidden">
-            <img src="${s.image||'https://images.unsplash.com/photo-1554941829-202a0b2403b8?w=400&q=80'}" class="w-full h-full object-cover" alt="${s.name}" onerror="this.style.display='none'" />
-            <div class="absolute top-3 right-3"><span class="px-2.5 py-1 rounded-lg text-xs font-semibold ${availColor}">${s.availability||'Available'}</span></div>
-            ${!s.isActive ? '<div class="absolute inset-0 bg-black/40 flex items-center justify-center"><span class="text-white font-bold text-sm">INACTIVE</span></div>' : ''}
-          </div>
-          <div class="p-5">
-            <h3 class="font-bold text-lg">${s.name}</h3>
-            <p class="text-sm text-text-secondary mt-1 flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>${s.location||'—'}</p>
-            <p class="text-xs text-text-secondary mt-2 line-clamp-2">${s.description||''}</p>
-            <div class="flex flex-wrap gap-1.5 mt-3">${(s.amenities||[]).map(a=>`<span class="px-2 py-0.5 rounded-md text-xs bg-surface text-text-secondary">${a}</span>`).join('')}</div>
-            <div class="flex items-center justify-between mt-4 pt-4 border-t border-border-light">
-              <div><span class="text-2xl font-bold">${formatCurrency(s.pricePerHour||0)}</span><span class="text-xs text-text-secondary"> / hr</span></div>
-              <div class="text-sm text-text-secondary"><i data-lucide="users" class="w-3.5 h-3.5 inline mr-1"></i>${s.capacity||0} pax</div>
-            </div>
-            <div class="flex gap-2 mt-4">
-              <button onclick="openEditStudioModal('${sid}')" class="btn-dark flex-1 py-2 text-sm flex items-center justify-center gap-1.5"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Edit</button>
-              <button onclick="confirmDeleteStudio('${sid}', '${(s.name||'').replace(/'/g,"\\'")}')" class="btn-ghost py-2 px-3"><i data-lucide="trash-2" class="w-4 h-4 text-error"></i></button>
-            </div>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
+      ${studios.map(s => studioCard(s)).join('')}
+    </div>
+    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span id="studio-count">Showing ${studios.length} studio(s)</span></div>`;
+  // ADDED BY TEAM - Search & Filter: wire search input and availability dropdown to the combined filter
+  const searchInput = document.getElementById('studio-search');
+  if (searchInput) searchInput.addEventListener('input', () => filterStudios());
+  const availFilter = document.getElementById('studio-avail-filter');
+  if (availFilter) availFilter.addEventListener('change', () => filterStudios());
+  lucide.createIcons();
+}
+
+// Shared studio card markup so the main grid and the filtered grid always render identically
+function studioCard(s) {
+  const sid = s._id || s.id;
+  const availColor = s.availability==='Available'?'text-success bg-green-50':s.availability==='Booked'?'text-blue-700 bg-blue-50':'text-warning bg-amber-50';
+  return `
+  <div class="bg-white rounded-2xl shadow-card border border-border-light overflow-hidden card-hover">
+    <div class="h-44 bg-gray-100 relative overflow-hidden">
+      <img src="${s.image||'https://images.unsplash.com/photo-1554941829-202a0b2403b8?w=400&q=80'}" class="w-full h-full object-cover" alt="${s.name}" onerror="this.style.display='none'" />
+      <div class="absolute top-3 right-3"><span class="px-2.5 py-1 rounded-lg text-xs font-semibold ${availColor}">${s.availability||'Available'}</span></div>
+      ${!s.isActive ? '<div class="absolute inset-0 bg-black/40 flex items-center justify-center"><span class="text-white font-bold text-sm">INACTIVE</span></div>' : ''}
+    </div>
+    <div class="p-5">
+      <h3 class="font-bold text-lg">${s.name}</h3>
+      <p class="text-sm text-text-secondary mt-1 flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i>${s.location||'—'}</p>
+      <p class="text-xs text-text-secondary mt-2 line-clamp-2">${s.description||''}</p>
+      <div class="flex flex-wrap gap-1.5 mt-3">${(s.amenities||[]).map(a=>`<span class="px-2 py-0.5 rounded-md text-xs bg-surface text-text-secondary">${a}</span>`).join('')}</div>
+      <div class="flex items-center justify-between mt-4 pt-4 border-t border-border-light">
+        <div><span class="text-2xl font-bold">${formatCurrency(s.pricePerHour||0)}</span><span class="text-xs text-text-secondary"> / hr</span></div>
+        <div class="text-sm text-text-secondary"><i data-lucide="users" class="w-3.5 h-3.5 inline mr-1"></i>${s.capacity||0} pax</div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="openEditStudioModal('${sid}')" class="btn-dark flex-1 py-2 text-sm flex items-center justify-center gap-1.5"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Edit</button>
+        <button onclick="confirmDeleteStudio('${sid}', '${(s.name||'').replace(/'/g,"\\'")}')" class="btn-ghost py-2 px-3"><i data-lucide="trash-2" class="w-4 h-4 text-error"></i></button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ADDED BY TEAM - Search & Filter: combined filtering — search text AND availability filter applied together
+function filterStudios() {
+  const searchEl = document.getElementById('studio-search');
+  const availEl = document.getElementById('studio-avail-filter');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
+  // Fall back to "All" option when the select has no value yet (defensive default)
+  const avail = availEl && availEl.value ? availEl.value : 'All Status';
+  const filtered = _studiosCache.filter(s => {
+    const amenities = (s.amenities || []).join(' ').toLowerCase();
+    const matchesSearch = !q || (s.name || '').toLowerCase().includes(q) || (s.location || '').toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q) || amenities.includes(q);
+    const matchesAvail = avail === 'All Status' || (s.availability || 'Available') === avail;
+    return matchesSearch && matchesAvail;
+  });
+  const grid = document.getElementById('studios-grid');
+  if (grid) grid.innerHTML = filtered.map(s => studioCard(s)).join('');
+  const countEl = document.getElementById('studio-count');
+  if (countEl) countEl.textContent = `Showing ${filtered.length} studio(s)`;
   lucide.createIcons();
 }
 
