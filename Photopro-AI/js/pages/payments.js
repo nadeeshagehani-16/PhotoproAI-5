@@ -41,6 +41,95 @@ function _showPayErrors(errEl, errors, btn, btnText) {
   btn.disabled = false; btn.textContent = btnText;
 }
 
+// Member 4: Auto-fill payment form fields when a client is selected
+// Tracks which fields currently hold auto-filled values so changing the client
+// updates them correctly, while values typed manually by the user are never overwritten.
+let _payAutoFilled = { amount: false, ref: false, notes: false };
+
+// Clear the auto-fill flag as soon as the user edits a field manually
+function _watchPayManualEdit(el, field) {
+  if (!el) return;
+  el.addEventListener('input', () => { _payAutoFilled[field] = false; }, { once: true });
+}
+
+// Member 4: Auto-fill payment form fields when a client is selected.
+// Fetches the selected client's details through the existing single-client API
+// (GET /api/customers/:id -> api.getCustomer), with the already-loaded client
+// list as fallback, then fills payment-related values: the client's pending
+// balance into Amount, a client-based invoice reference into Reference ID and a
+// contact summary into Notes — only into fields that are empty or auto-filled.
+async function handlePaymentClientChange() {
+  const sel = document.getElementById('apy-client');
+  const infoEl = document.getElementById('apy-client-info');
+  const id = sel ? sel.value : '';
+
+  // No client selected → keep related fields empty/default and hide details
+  if (!id) {
+    if (_payAutoFilled.amount) { const a = document.getElementById('apy-amount'); if (a) a.value = ''; }
+    if (_payAutoFilled.ref) { const r = document.getElementById('apy-ref'); if (r) r.value = ''; }
+    if (_payAutoFilled.notes) { const n = document.getElementById('apy-notes'); if (n) n.value = ''; }
+    _payAutoFilled = { amount: false, ref: false, notes: false };
+    if (infoEl) infoEl.classList.add('hidden');
+    return;
+  }
+
+  // Fetch fresh client data (existing API; fall back to the cached client list on error)
+  let client = null;
+  try {
+    const res = await api.getCustomer(id);
+    client = res && res.data ? res.data : null;
+  } catch (e) { /* backend unreachable → use the cached list below */ }
+  if (!client) client = _payCustomers.find(c => (c._id || c.id) === id) || null;
+  if (!client) return;
+
+  // Client's existing payments → payment-related auto-fill values
+  const clientId = client._id || client.id;
+  const clientPayments = _paymentsCache.filter(p => {
+    const pid = p.customerId && typeof p.customerId === 'object' ? (p.customerId._id || p.customerId.id) : p.customerId;
+    return pid === clientId;
+  });
+  const pendingTotal = clientPayments.filter(p => p.status === 'Pending').reduce((s, p) => s + (p.amount || 0), 0);
+  const paidTotal = clientPayments.filter(p => p.status === 'Completed').reduce((s, p) => s + (p.amount || 0), 0);
+
+  // Auto-fill: Amount ← client's pending payment balance (only while empty or auto-filled)
+  const amountEl = document.getElementById('apy-amount');
+  if (amountEl && (!amountEl.value || _payAutoFilled.amount)) {
+    amountEl.value = pendingTotal > 0 ? pendingTotal : '';
+    _payAutoFilled.amount = pendingTotal > 0;
+    _watchPayManualEdit(amountEl, 'amount');
+  }
+
+  // Auto-fill: Reference ID ← client-based invoice reference (only while empty or auto-filled)
+  const refEl = document.getElementById('apy-ref');
+  if (refEl && (!refEl.value || _payAutoFilled.ref)) {
+    const firstName = (client.name || 'Client').trim().split(' ')[0].toUpperCase();
+    refEl.value = `INV-${firstName}-${String(clientPayments.length + 1).padStart(3, '0')}`;
+    _payAutoFilled.ref = true;
+    _watchPayManualEdit(refEl, 'ref');
+  }
+
+  // Auto-fill: Notes ← client contact summary (only while empty or auto-filled)
+  const notesEl = document.getElementById('apy-notes');
+  if (notesEl && (!notesEl.value || _payAutoFilled.notes)) {
+    const contact = [client.email, client.phone].filter(Boolean).join(', ');
+    notesEl.value = contact ? `Client: ${client.name} (${contact})` : `Client: ${client.name}`;
+    _payAutoFilled.notes = true;
+    _watchPayManualEdit(notesEl, 'notes');
+  }
+
+  // Show the selected client's details + payment summary (updates on every client change)
+  if (infoEl) {
+    infoEl.innerHTML = `<div class="flex items-start gap-2"><i data-lucide="user" class="w-4 h-4 mt-0.5 text-text-secondary shrink-0"></i><div class="space-y-0.5">
+      <p class="font-semibold">${client.name || '—'} ${client.status ? statusBadge(client.status) : ''}</p>
+      <p class="text-text-secondary">${client.email || 'No email'} · ${client.phone || 'No phone'}</p>
+      ${client.address ? `<p class="text-text-secondary">${client.address}</p>` : ''}
+      <p class="text-text-secondary">Pending: <span class="font-semibold text-warning">${formatCurrency(pendingTotal)}</span> · Paid to date: <span class="font-semibold text-success">${formatCurrency(paidTotal)}</span></p>
+    </div></div>`;
+    infoEl.classList.remove('hidden');
+    lucide.createIcons();
+  }
+}
+
 async function renderInvoices() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -150,14 +239,18 @@ function filterPaySearch(q) {
 
 // ── Add Payment Modal ──
 function openAddPaymentModal() {
+  // Member 4: reset auto-fill tracking so a freshly opened form never overwrites manual input
+  _payAutoFilled = { amount: false, ref: false, notes: false };
   const clients = _payCustomers.length > 0 ? _payCustomers : (MOCK.clients || []);
   openModal(`<div class="p-6">
     <div class="flex items-center justify-between mb-6"><h2 class="text-xl font-bold">Record Payment</h2><button onclick="closeModal()" class="btn-action"><i data-lucide="x" class="w-5 h-5"></i></button></div>
     <form id="add-pay-form" onsubmit="handleCreatePayment(event)" class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Client *</label><select id="apy-client" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">${clients.map(c=>`<option value="${c._id||c.id}">${c.name}</option>`).join('')}</select></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Client *</label><select id="apy-client" required onchange="handlePaymentClientChange()" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option value="">Select client</option>${clients.map(c=>`<option value="${c._id||c.id}">${c.name}</option>`).join('')}</select></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Amount (Rs.) *</label><input id="apy-amount" type="number" required min="0" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="150000" /></div>
       </div>
+      <!-- Member 4: auto-filled client details + payment summary for the selected client -->
+      <div id="apy-client-info" class="hidden bg-surface rounded-xl p-3 text-sm"></div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Method *</label><select id="apy-method" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Credit Card</option><option>Debit Card</option><option>Bank Transfer</option><option>Cash</option><option>Online</option></select></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Type *</label><select id="apy-type" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Booking</option><option>Rental</option><option>Studio</option><option>Package</option><option>Other</option></select></div>
