@@ -46,7 +46,7 @@ function _showPayErrors(errEl, errors, btn, btnText) {
 // Member 4: Auto-fill payment form fields when a client is selected
 // Tracks which fields currently hold auto-filled values so changing the client
 // updates them correctly, while values typed manually by the user are never overwritten.
-let _payAutoFilled = { amount: false, ref: false, notes: false };
+let _payAutoFilled = { amount: false, ref: false, txn: false, notes: false };
 
 // Clear the auto-fill flag as soon as the user edits a field manually
 function _watchPayManualEdit(el, field) {
@@ -58,8 +58,9 @@ function _watchPayManualEdit(el, field) {
 // Fetches the selected client's details through the existing single-client API
 // (GET /api/customers/:id -> api.getCustomer), with the already-loaded client
 // list as fallback, then fills payment-related values: the client's pending
-// balance into Amount, a client-based invoice reference into Reference ID and a
-// contact summary into Notes — only into fields that are empty or auto-filled.
+// balance into Amount, a client-based invoice reference into Reference ID, a
+// client-based transaction reference into Transaction Ref and a contact summary
+// into Notes — only into fields that are empty or auto-filled.
 async function handlePaymentClientChange() {
   const sel = document.getElementById('apy-client');
   const infoEl = document.getElementById('apy-client-info');
@@ -69,8 +70,9 @@ async function handlePaymentClientChange() {
   if (!id) {
     if (_payAutoFilled.amount) { const a = document.getElementById('apy-amount'); if (a) a.value = ''; }
     if (_payAutoFilled.ref) { const r = document.getElementById('apy-ref'); if (r) r.value = ''; }
+    if (_payAutoFilled.txn) { const t = document.getElementById('apy-txn'); if (t) t.value = ''; }
     if (_payAutoFilled.notes) { const n = document.getElementById('apy-notes'); if (n) n.value = ''; }
-    _payAutoFilled = { amount: false, ref: false, notes: false };
+    _payAutoFilled = { amount: false, ref: false, txn: false, notes: false };
     if (infoEl) infoEl.classList.add('hidden');
     return;
   }
@@ -108,6 +110,15 @@ async function handlePaymentClientChange() {
     refEl.value = `INV-${firstName}-${String(clientPayments.length + 1).padStart(3, '0')}`;
     _payAutoFilled.ref = true;
     _watchPayManualEdit(refEl, 'ref');
+  }
+
+  // Auto-fill: Transaction Ref ← client-based transaction reference (only while empty or auto-filled)
+  // (e.g. TXN-2026-002 — same counter as the Reference ID so the pair stays in sync)
+  const txnEl = document.getElementById('apy-txn');
+  if (txnEl && (!txnEl.value || _payAutoFilled.txn)) {
+    txnEl.value = `TXN-${new Date().getFullYear()}-${String(clientPayments.length + 1).padStart(3, '0')}`;
+    _payAutoFilled.txn = true;
+    _watchPayManualEdit(txnEl, 'txn');
   }
 
   // Auto-fill: Notes ← client contact summary (only while empty or auto-filled)
@@ -276,7 +287,7 @@ function applyPayFilters() {
 // ── Add Payment Modal ──
 function openAddPaymentModal() {
   // Member 4: reset auto-fill tracking so a freshly opened form never overwrites manual input
-  _payAutoFilled = { amount: false, ref: false, notes: false };
+  _payAutoFilled = { amount: false, ref: false, txn: false, notes: false };
   const clients = _payCustomers.length > 0 ? _payCustomers : (MOCK.clients || []);
   openModal(`<div class="p-6">
     <div class="flex items-center justify-between mb-6"><h2 class="text-xl font-bold">Record Payment</h2><button onclick="closeModal()" class="btn-action"><i data-lucide="x" class="w-5 h-5"></i></button></div>
