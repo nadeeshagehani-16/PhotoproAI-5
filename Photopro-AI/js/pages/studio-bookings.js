@@ -2,6 +2,8 @@
 let _studioBookingsCache = [];
 let _studioBookingsStudios = [];
 let _studioBookingsCustomers = [];
+// ADDED BY TEAM - Search & Filter: currently selected status tab (combined with date/studio/search filters)
+let _stbStatusTab = 'All';
 
 // ── Validation Helpers ──
 function _stbTodayStr() {
@@ -11,8 +13,8 @@ function _stbTodayStr() {
 
 function _isValidEmail(email) {
   if (!email) return true; // optional field
-  // Reject special chars like # $ % ^ & * in local part; standard RFC-ish check
-  const re = /^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  // ADDED BY TEAM - Form Validation: lowercase-only email format; rejects # $ spaces and uppercase letters
+  const re = /^[a-z0-9._+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
   return re.test(email);
 }
 
@@ -65,6 +67,10 @@ async function renderStudioBookings() {
       <button onclick="switchStudioView('slots')" id="sv-slots-btn" class="px-4 py-2 rounded-xl text-sm font-medium bg-white border border-border-light text-text-secondary hover:bg-hover-light transition">Available Slots</button>
     </div>
     <div class="flex gap-3 mb-6 flex-wrap items-center bg-white rounded-xl border border-border-light p-3">
+      <!-- ADDED BY TEAM - Search & Filter: search box (applied together with the date/studio filters and status tabs) -->
+      <div class="relative flex-1 min-w-[200px]"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+        <input id="stb-filter-search" type="text" placeholder="Search bookings by client, purpose or studio..." class="w-full pl-9 pr-3 py-1.5 rounded-lg border border-border-light text-sm" />
+      </div>
       <label class="text-sm font-medium text-text-secondary">Filter:</label>
       <input id="stb-filter-from" type="date" class="px-3 py-1.5 rounded-lg border border-border-light text-sm" placeholder="From" />
       <span class="text-text-secondary text-sm">to</span>
@@ -140,10 +146,12 @@ function studioBookingRow(b) {
   </tr>`;
 }
 
-function renderStudioBookingsTable(bookings) {
+function renderStudioBookingsTable(bookings, keepTab = false) {
   document.getElementById('stb-loading').classList.add('hidden');
   const content = document.getElementById('stb-content');
   content.classList.remove('hidden');
+  // Fresh render resets the active status tab to "All" (filtered renders keep it)
+  if (!keepTab) _stbStatusTab = 'All';
   const totalCost = bookings.filter(b=>b.status!=='Cancelled').reduce((s,b) => s + (b.totalCost||0), 0);
   content.innerHTML = `
     ${kpiCards([
@@ -153,7 +161,7 @@ function renderStudioBookingsTable(bookings) {
       { label:'Pending', value:bookings.filter(b=>b.status==='Pending').length, icon:'clock', iconBg:'bg-amber-100', iconColor:'text-amber-600' },
     ])}
     <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
-      ${['All','Confirmed','Pending','Completed','Cancelled'].map((s,i) => `<button onclick="filterStbByStatus('${s}')" class="stb-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ${i===0?'bg-primary text-white':'bg-white border border-border-light text-text-secondary hover:bg-hover-light'}">${s}</button>`).join('')}
+      ${['All','Confirmed','Pending','Completed','Cancelled'].map(s => `<button onclick="filterStbByStatus('${s}')" class="stb-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ${s===_stbStatusTab?'bg-primary text-white':'bg-white border border-border-light text-text-secondary hover:bg-hover-light'}">${s}</button>`).join('')}
     </div>
     <div class="table-wrap">
       <table class="data-table">
@@ -161,26 +169,36 @@ function renderStudioBookingsTable(bookings) {
         <tbody id="stb-tbody">${bookings.map(b => studioBookingRow(b)).join('')}</tbody>
       </table>
     </div>
-    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span>Showing ${bookings.length} booking(s)</span></div>`;
+    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span id="stb-count">Showing ${bookings.length} booking(s)</span></div>`;
   lucide.createIcons();
 }
 
 function filterStbByStatus(status) {
+  _stbStatusTab = status;
   document.querySelectorAll('.stb-tab').forEach(t => {
     t.className = 'stb-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ' +
       (t.textContent.trim() === status ? 'bg-primary text-white' : 'bg-white border border-border-light text-text-secondary hover:bg-hover-light');
   });
-  const filtered = status === 'All' ? _studioBookingsCache : _studioBookingsCache.filter(b => b.status === status);
-  document.getElementById('stb-tbody').innerHTML = filtered.map(b => studioBookingRow(b)).join('');
-  lucide.createIcons();
+  applyStbFilters();
 }
 
-// ── Date & Studio Filters ──
+// ── Date, Studio & Search Filters ──
+// ADDED BY TEAM - Search & Filter: combined filtering — search text, date range, studio AND active status tab applied together
 function applyStbFilters() {
   const from = document.getElementById('stb-filter-from')?.value || '';
   const to = document.getElementById('stb-filter-to')?.value || '';
   const studioId = document.getElementById('stb-filter-studio')?.value || '';
+  const searchEl = document.getElementById('stb-filter-search');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
   let filtered = _studioBookingsCache;
+  if (q) {
+    filtered = filtered.filter(b => {
+      const studioName = (b.studioId?.name || b.studio || '').toLowerCase();
+      const clientName = (b.customerId?.name || b.client || '').toLowerCase();
+      const purpose = (b.purpose || '').toLowerCase();
+      return studioName.includes(q) || clientName.includes(q) || purpose.includes(q);
+    });
+  }
   if (from) {
     filtered = filtered.filter(b => {
       const bDate = (b.date || '').split('T')[0];
@@ -199,16 +217,23 @@ function applyStbFilters() {
       return sid === studioId;
     });
   }
-  renderStudioBookingsTable(filtered);
+  if (_stbStatusTab !== 'All') {
+    filtered = filtered.filter(b => b.status === _stbStatusTab);
+  }
+  // Re-render with keepTab so the active status tab stays highlighted
+  renderStudioBookingsTable(filtered, true);
 }
 
 function clearStbFilters() {
   const from = document.getElementById('stb-filter-from');
   const to = document.getElementById('stb-filter-to');
   const studio = document.getElementById('stb-filter-studio');
+  const search = document.getElementById('stb-filter-search');
   if (from) from.value = '';
   if (to) to.value = '';
   if (studio) studio.value = '';
+  if (search) search.value = '';
+  _stbStatusTab = 'All';
   renderStudioBookingsTable(_studioBookingsCache);
 }
 

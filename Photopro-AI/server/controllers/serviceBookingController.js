@@ -14,11 +14,11 @@ function _validateBookingData(body, isUpdate = false) {
   const { customerId, packageId, photographerId, event, date, startTime, endTime, location, amount } = body;
 
   // ── REQUIRED FIELD CHECKS (only enforced on CREATE, not partial update) ──
-  // All fields mandatory: client, package, photographer, event, date, times, location, amount
+  // All fields mandatory except photographer: client, package, event, date, times, location, amount
+  // photographerId is optional (calendar quick-create omits it; the service-bookings page collects it)
   if (!isUpdate) {
     if (!customerId) errors.push('Client is required.');
     if (!packageId) errors.push('Package is required.');
-    if (!photographerId) errors.push('Photographer is required.');
     if (!event || !event.trim()) errors.push('Event type is required.');
     if (!date) errors.push('Booking date is required.');
     if (!startTime) errors.push('Start time is required.');
@@ -59,10 +59,11 @@ function _validateBookingData(body, isUpdate = false) {
   }
 
   // ── DATE VALIDATION: past-date rejection ──
-  // Compares yyyy-MM-dd strings; today-date from local clock
+  // Compares yyyy-MM-dd strings; built from local date parts to avoid UTC timezone shift (Sri Lanka UTC+5:30)
   // Date must be today or future (compare yyyy-MM-dd)
   if (date) {
-    const dateStr = new Date(date).toISOString().split('T')[0];
+    const d = new Date(date);
+    const dateStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
     const today = new Date();
     const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
     if (dateStr < todayStr) {
