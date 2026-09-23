@@ -149,6 +149,9 @@ function filterPaySearch(q) {
 }
 
 // ── Add Payment Modal ──
+// Transaction Ref is pre-filled with an auto-generated TXN-YYYY-NNN value so a
+// recorded payment is never saved with an empty Transaction Ref (you can still
+// overwrite it with the real bank/gateway reference before saving).
 function openAddPaymentModal() {
   const clients = _payCustomers.length > 0 ? _payCustomers : (MOCK.clients || []);
   openModal(`<div class="p-6">
@@ -164,7 +167,7 @@ function openAddPaymentModal() {
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Reference ID</label><input id="apy-ref" type="text" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="INV-011" /></div>
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Transaction Ref</label><input id="apy-txn" type="text" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="TXN-2026-xxx" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Transaction Ref</label><input id="apy-txn" type="text" value="TXN-${new Date().getFullYear()}-${String(_paymentsCache.length + 1).padStart(3, '0')}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="TXN-2026-xxx" /></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Date *</label><input id="apy-date" type="date" required min="${_payTodayStr()}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" /></div>
