@@ -1,7 +1,8 @@
 // Clients Page – Wired to Customer CRUD API
 let _clientsCache = [];
 
-const _CLIENT_EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+// ADDED BY TEAM - Form Validation: lowercase-only email pattern (rejects uppercase letters, #, $, spaces, etc.)
+const _CLIENT_EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 const _CLIENT_PHONE_RE = /^\+?[\d\s\-().]{7,20}$/;
 
 // ADDED BY TEAM - Form Validation: validates client create/edit form (required fields, email format, phone format, length limits)
@@ -9,7 +10,7 @@ function _validateClientForm(data) {
   const errors = [];
   if (!data.name || data.name.trim().length < 2) errors.push('Full name is required (min 2 characters).');
   if (!data.email) errors.push('Email is required.');
-  else if (!_CLIENT_EMAIL_RE.test(data.email.trim())) errors.push('Email format is invalid. Use a valid address like name@example.com (characters such as # or $ are not allowed).');
+  else if (!_CLIENT_EMAIL_RE.test(data.email.trim())) errors.push('Email format is invalid. Use a lowercase address like name@example.com (uppercase letters and characters such as # or $ are not allowed).');
   if (!data.phone) errors.push('Phone is required.');
   else if (!_CLIENT_PHONE_RE.test(data.phone.trim())) errors.push('Phone must be 7-15 digits, optionally starting with +.');
   if (data.name && data.name.trim().length > 100) errors.push('Name cannot exceed 100 characters.');

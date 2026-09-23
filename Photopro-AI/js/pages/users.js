@@ -1,7 +1,8 @@
 // User Management Page
 let _usersCache = [];
 
-const _USER_EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+// ADDED BY TEAM - Form Validation: lowercase-only email pattern (rejects uppercase letters, #, $, spaces, etc.)
+const _USER_EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
 const _USER_PHONE_RE = /^\+?[\d\s\-().]{7,20}$/;
 
 // ADDED BY TEAM - Form Validation: validates user create/edit form (required fields, email format, password length, phone format)
@@ -9,7 +10,7 @@ function _validateUserForm(data) {
   const errors = [];
   if (!data.name || data.name.trim().length < 2) errors.push('Full name is required (min 2 characters).');
   if (!data.email) errors.push('Email is required.');
-  else if (!_USER_EMAIL_RE.test(data.email.trim())) errors.push('Email format is invalid. Use a valid address like name@example.com (characters such as # or $ are not allowed).');
+  else if (!_USER_EMAIL_RE.test(data.email.trim())) errors.push('Email format is invalid. Use a lowercase address like name@example.com (uppercase letters and characters such as # or $ are not allowed).');
   if (data.password !== undefined) {
     if (!data.password) errors.push('Password is required.');
     else if (data.password.length < 6) errors.push('Password must be at least 6 characters.');
