@@ -1,6 +1,8 @@
 // Payments Page – Full CRUD
 let _paymentsCache = [];
 let _payCustomers = [];
+// ADDED BY TEAM - Search & Filter: currently selected status tab (combined with search + method/type filters)
+let _payStatusTab = 'All';
 
 // ── Validation Helpers ──
 function _payTodayStr() {
@@ -39,6 +41,95 @@ function _showPayErrors(errEl, errors, btn, btnText) {
   errEl.classList.remove('hidden');
   lucide.createIcons();
   btn.disabled = false; btn.textContent = btnText;
+}
+
+// Member 4: Auto-fill payment form fields when a client is selected
+// Tracks which fields currently hold auto-filled values so changing the client
+// updates them correctly, while values typed manually by the user are never overwritten.
+let _payAutoFilled = { amount: false, ref: false, notes: false };
+
+// Clear the auto-fill flag as soon as the user edits a field manually
+function _watchPayManualEdit(el, field) {
+  if (!el) return;
+  el.addEventListener('input', () => { _payAutoFilled[field] = false; }, { once: true });
+}
+
+// Member 4: Auto-fill payment form fields when a client is selected.
+// Fetches the selected client's details through the existing single-client API
+// (GET /api/customers/:id -> api.getCustomer), with the already-loaded client
+// list as fallback, then fills payment-related values: the client's pending
+// balance into Amount, a client-based invoice reference into Reference ID and a
+// contact summary into Notes — only into fields that are empty or auto-filled.
+async function handlePaymentClientChange() {
+  const sel = document.getElementById('apy-client');
+  const infoEl = document.getElementById('apy-client-info');
+  const id = sel ? sel.value : '';
+
+  // No client selected → keep related fields empty/default and hide details
+  if (!id) {
+    if (_payAutoFilled.amount) { const a = document.getElementById('apy-amount'); if (a) a.value = ''; }
+    if (_payAutoFilled.ref) { const r = document.getElementById('apy-ref'); if (r) r.value = ''; }
+    if (_payAutoFilled.notes) { const n = document.getElementById('apy-notes'); if (n) n.value = ''; }
+    _payAutoFilled = { amount: false, ref: false, notes: false };
+    if (infoEl) infoEl.classList.add('hidden');
+    return;
+  }
+
+  // Fetch fresh client data (existing API; fall back to the cached client list on error)
+  let client = null;
+  try {
+    const res = await api.getCustomer(id);
+    client = res && res.data ? res.data : null;
+  } catch (e) { /* backend unreachable → use the cached list below */ }
+  if (!client) client = _payCustomers.find(c => (c._id || c.id) === id) || null;
+  if (!client) return;
+
+  // Client's existing payments → payment-related auto-fill values
+  const clientId = client._id || client.id;
+  const clientPayments = _paymentsCache.filter(p => {
+    const pid = p.customerId && typeof p.customerId === 'object' ? (p.customerId._id || p.customerId.id) : p.customerId;
+    return pid === clientId;
+  });
+  const pendingTotal = clientPayments.filter(p => p.status === 'Pending').reduce((s, p) => s + (p.amount || 0), 0);
+  const paidTotal = clientPayments.filter(p => p.status === 'Completed').reduce((s, p) => s + (p.amount || 0), 0);
+
+  // Auto-fill: Amount ← client's pending payment balance (only while empty or auto-filled)
+  const amountEl = document.getElementById('apy-amount');
+  if (amountEl && (!amountEl.value || _payAutoFilled.amount)) {
+    amountEl.value = pendingTotal > 0 ? pendingTotal : '';
+    _payAutoFilled.amount = pendingTotal > 0;
+    _watchPayManualEdit(amountEl, 'amount');
+  }
+
+  // Auto-fill: Reference ID ← client-based invoice reference (only while empty or auto-filled)
+  const refEl = document.getElementById('apy-ref');
+  if (refEl && (!refEl.value || _payAutoFilled.ref)) {
+    const firstName = (client.name || 'Client').trim().split(' ')[0].toUpperCase();
+    refEl.value = `INV-${firstName}-${String(clientPayments.length + 1).padStart(3, '0')}`;
+    _payAutoFilled.ref = true;
+    _watchPayManualEdit(refEl, 'ref');
+  }
+
+  // Auto-fill: Notes ← client contact summary (only while empty or auto-filled)
+  const notesEl = document.getElementById('apy-notes');
+  if (notesEl && (!notesEl.value || _payAutoFilled.notes)) {
+    const contact = [client.email, client.phone].filter(Boolean).join(', ');
+    notesEl.value = contact ? `Client: ${client.name} (${contact})` : `Client: ${client.name}`;
+    _payAutoFilled.notes = true;
+    _watchPayManualEdit(notesEl, 'notes');
+  }
+
+  // Show the selected client's details + payment summary (updates on every client change)
+  if (infoEl) {
+    infoEl.innerHTML = `<div class="flex items-start gap-2"><i data-lucide="user" class="w-4 h-4 mt-0.5 text-text-secondary shrink-0"></i><div class="space-y-0.5">
+      <p class="font-semibold">${client.name || '—'} ${client.status ? statusBadge(client.status) : ''}</p>
+      <p class="text-text-secondary">${client.email || 'No email'} · ${client.phone || 'No phone'}</p>
+      ${client.address ? `<p class="text-text-secondary">${client.address}</p>` : ''}
+      <p class="text-text-secondary">Pending: <span class="font-semibold text-warning">${formatCurrency(pendingTotal)}</span> · Paid to date: <span class="font-semibold text-success">${formatCurrency(paidTotal)}</span></p>
+    </div></div>`;
+    infoEl.classList.remove('hidden');
+    lucide.createIcons();
+  }
 }
 
 async function renderInvoices() {
@@ -102,6 +193,8 @@ function renderPaymentsTable(payments) {
   document.getElementById('pay-loading').classList.add('hidden');
   const content = document.getElementById('pay-content');
   content.classList.remove('hidden');
+  // Fresh render resets the active status tab to "All"
+  _payStatusTab = 'All';
   const totalPaid = payments.filter(p => p.status==='Completed').reduce((s,p) => s + (p.amount||0), 0);
   const totalPending = payments.filter(p => p.status==='Pending').reduce((s,p) => s + (p.amount||0), 0);
   content.innerHTML = `
@@ -114,50 +207,86 @@ function renderPaymentsTable(payments) {
     <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
       ${['All','Completed','Pending','Failed'].map((s,i) => `<button onclick="filterPayByStatus('${s}')" class="pay-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ${i===0?'bg-primary text-white':'bg-white border border-border-light text-text-secondary hover:bg-hover-light'}">${s}</button>`).join('')}
     </div>
-    ${searchFilter('Search by client name or reference ID...')}
+    <!-- ADDED BY TEAM - Search & Filter: search box + method and type dropdowns (applied together with the status tabs) -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+      <div class="relative flex-1"><i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary"></i>
+        <input id="pay-search" type="text" placeholder="Search by client name, reference ID or transaction ref..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition" />
+      </div>
+      <div class="flex gap-2">
+        <select id="pay-method-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Methods</option><option>Credit Card</option><option>Debit Card</option><option>Bank Transfer</option><option>Cash</option><option>Online</option>
+        </select>
+        <select id="pay-type-filter" class="px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
+          <option>All Types</option><option>Booking</option><option>Rental</option><option>Studio</option><option>Package</option><option>Other</option>
+        </select>
+      </div>
+    </div>
     <div class="table-wrap">
       <table class="data-table">
         <thead><tr><th>Reference</th><th>Client</th><th>Amount</th><th>Method</th><th>Type</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
         <tbody id="pay-tbody">${payments.map(p => paymentRow(p)).join('')}</tbody>
       </table>
     </div>
-    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span>Showing ${payments.length} payment(s)</span></div>`;
-  const searchInput = content.querySelector('input[type="text"]');
-  if (searchInput) searchInput.addEventListener('input', () => filterPaySearch(searchInput.value));
+    <div class="flex items-center justify-between mt-4 text-sm text-text-secondary"><span id="pay-count">Showing ${payments.length} payment(s)</span></div>`;
+  // ADDED BY TEAM - Search & Filter: wire search input, method and type dropdowns to the combined filter
+  const searchInput = document.getElementById('pay-search');
+  if (searchInput) searchInput.addEventListener('input', () => applyPayFilters());
+  const methodFilter = document.getElementById('pay-method-filter');
+  if (methodFilter) methodFilter.addEventListener('change', () => applyPayFilters());
+  const typeFilter = document.getElementById('pay-type-filter');
+  if (typeFilter) typeFilter.addEventListener('change', () => applyPayFilters());
   lucide.createIcons();
 }
 
 function filterPayByStatus(status) {
+  _payStatusTab = status;
   document.querySelectorAll('.pay-tab').forEach(t => {
     t.className = 'pay-tab px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition ' +
       (t.textContent.trim() === status ? 'bg-primary text-white' : 'bg-white border border-border-light text-text-secondary hover:bg-hover-light');
   });
-  const filtered = status === 'All' ? _paymentsCache : _paymentsCache.filter(p => p.status === status);
-  document.getElementById('pay-tbody').innerHTML = filtered.map(p => paymentRow(p)).join('');
-  lucide.createIcons();
+  applyPayFilters();
 }
 
-function filterPaySearch(q) {
-  q = q.toLowerCase();
+// ADDED BY TEAM - Search & Filter: combined filtering — search text, method, type AND active status tab applied together
+function applyPayFilters() {
+  const searchEl = document.getElementById('pay-search');
+  const methodEl = document.getElementById('pay-method-filter');
+  const typeEl = document.getElementById('pay-type-filter');
+  const q = (searchEl ? searchEl.value : '').toLowerCase();
+  // Fall back to "All" options when the selects have no value yet (defensive defaults)
+  const method = methodEl && methodEl.value ? methodEl.value : 'All Methods';
+  const type = typeEl && typeEl.value ? typeEl.value : 'All Types';
   const filtered = _paymentsCache.filter(p => {
     const name = (p.customerId?.name || p.customer || '').toLowerCase();
-    const ref = (p.referenceId||'').toLowerCase();
-    return name.includes(q) || ref.includes(q);
+    const ref = (p.referenceId || '').toLowerCase();
+    const txn = (p.transactionRef || '').toLowerCase();
+    const matchesSearch = !q || name.includes(q) || ref.includes(q) || txn.includes(q);
+    const matchesMethod = method === 'All Methods' || p.method === method;
+    const matchesType = type === 'All Types' || p.type === type;
+    const matchesStatus = _payStatusTab === 'All' || p.status === _payStatusTab;
+    return matchesSearch && matchesMethod && matchesType && matchesStatus;
   });
-  document.getElementById('pay-tbody').innerHTML = filtered.map(p => paymentRow(p)).join('');
+  const tbody = document.getElementById('pay-tbody');
+  if (tbody) tbody.innerHTML = filtered.map(p => paymentRow(p)).join('');
+  const countEl = document.getElementById('pay-count');
+  if (countEl) countEl.textContent = `Showing ${filtered.length} payment(s)`;
   lucide.createIcons();
 }
 
 // ── Add Payment Modal ──
 function openAddPaymentModal() {
+  // Member 4: reset auto-fill tracking so a freshly opened form never overwrites manual input
+  _payAutoFilled = { amount: false, ref: false, notes: false };
   const clients = _payCustomers.length > 0 ? _payCustomers : (MOCK.clients || []);
   openModal(`<div class="p-6">
     <div class="flex items-center justify-between mb-6"><h2 class="text-xl font-bold">Record Payment</h2><button onclick="closeModal()" class="btn-action"><i data-lucide="x" class="w-5 h-5"></i></button></div>
     <form id="add-pay-form" onsubmit="handleCreatePayment(event)" class="space-y-4">
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Client *</label><select id="apy-client" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">${clients.map(c=>`<option value="${c._id||c.id}">${c.name}</option>`).join('')}</select></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Client *</label><select id="apy-client" required onchange="handlePaymentClientChange()" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option value="">Select client</option>${clients.map(c=>`<option value="${c._id||c.id}">${c.name}</option>`).join('')}</select></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Amount (Rs.) *</label><input id="apy-amount" type="number" required min="0" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 outline-none" placeholder="150000" /></div>
       </div>
+      <!-- Member 4: auto-filled client details + payment summary for the selected client -->
+      <div id="apy-client-info" class="hidden bg-surface rounded-xl p-3 text-sm"></div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Method *</label><select id="apy-method" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Credit Card</option><option>Debit Card</option><option>Bank Transfer</option><option>Cash</option><option>Online</option></select></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Type *</label><select id="apy-type" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option>Booking</option><option>Rental</option><option>Studio</option><option>Package</option><option>Other</option></select></div>
