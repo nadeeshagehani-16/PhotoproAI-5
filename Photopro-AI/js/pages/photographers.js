@@ -106,7 +106,9 @@ function photographerCard(p) {
   return `
   <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light card-hover text-center">
     <div class="relative inline-block">
-      <img src="${p.avatar||'https://i.pravatar.cc/80'}" class="w-20 h-20 rounded-full mx-auto ring-4 ${p.status==='Active'?'ring-green-100':'ring-gray-100'}" alt="${p.name}" />
+      ${p.avatar
+        ? `<img src="${p.avatar}" class="w-20 h-20 rounded-full mx-auto object-cover ring-4 ${p.status==='Active'?'ring-green-100':'ring-gray-100'}" alt="${p.name}" />`
+        : `<div class="w-20 h-20 rounded-full mx-auto flex items-center justify-center ring-4 ${p.status==='Active'?'ring-green-100':'ring-gray-100'}" style="background:#F4E8C1;color:#8a6d1f"><span class="text-xl font-bold">${_phInitials(p.name)}</span></div>`}
       <span class="absolute bottom-0 right-0 w-5 h-5 rounded-full border-2 border-white ${availDot}"></span>
     </div>
     <h3 class="font-bold mt-4">${p.name}</h3>
@@ -147,11 +149,98 @@ function applyTeamFilters() {
   lucide.createIcons();
 }
 
+// ── Image uploader (Add & Edit forms) ──
+// Picked photos are compressed to a small JPEG data-URL and stored in the avatar
+// field, so no file-storage backend is needed; the card renders the stored value.
+function _phInitials(name) {
+  return (name || '?').split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
+
+// Resize the picked image to max 400px on the longest edge and return a JPEG data-URL
+function _phCompressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      try {
+        const max = 400;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      } catch (e) { URL.revokeObjectURL(url); reject(e); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('unreadable image')); };
+    img.src = url;
+  });
+}
+
+// Reflect the hidden avatar value into the preview (image / placeholder / remove button)
+function _phRefreshPreview(prefix) {
+  const val = ((document.getElementById(prefix + '-avatar') || {}).value || '').trim();
+  const img = document.getElementById(prefix + '-img-preview');
+  const ph = document.getElementById(prefix + '-img-placeholder');
+  const rm = document.getElementById(prefix + '-img-remove');
+  if (img) { if (val) { img.src = val; img.classList.remove('hidden'); } else { img.classList.add('hidden'); } }
+  if (ph) ph.classList.toggle('hidden', !!val);
+  if (rm) rm.classList.toggle('hidden', !val);
+}
+
+// File input onchange: validate, compress and stage the image into the hidden field
+async function _phImageSelected(prefix) {
+  const input = document.getElementById(prefix + '-image');
+  const errEl = document.getElementById(prefix + '-img-error');
+  if (errEl) { errEl.textContent = ''; errEl.classList.add('hidden'); }
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  if (!file.type || file.type.indexOf('image/') !== 0) {
+    if (errEl) { errEl.textContent = 'Please choose an image file (JPG, PNG, WebP...).'; errEl.classList.remove('hidden'); }
+    input.value = '';
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    if (errEl) { errEl.textContent = 'Image is too large — please choose a file under 5 MB.'; errEl.classList.remove('hidden'); }
+    input.value = '';
+    return;
+  }
+  try {
+    document.getElementById(prefix + '-avatar').value = await _phCompressImage(file);
+    _phRefreshPreview(prefix);
+  } catch (e) {
+    if (errEl) { errEl.textContent = 'Could not read that image — try a different file.'; errEl.classList.remove('hidden'); }
+    input.value = '';
+  }
+}
+
+// Clear the staged image (back to the initials placeholder)
+function _phRemoveImage(prefix) {
+  const hidden = document.getElementById(prefix + '-avatar');
+  if (hidden) hidden.value = '';
+  const input = document.getElementById(prefix + '-image');
+  if (input) input.value = '';
+  _phRefreshPreview(prefix);
+}
+
 // ── Add Photographer Modal ──
 function openAddPhotographerModal() {
   openModal(`<div class="p-6">
     <div class="flex items-center justify-between mb-6"><h2 class="text-xl font-bold">Add Photographer</h2><button onclick="closeModal()" class="btn-action"><i data-lucide="x" class="w-5 h-5"></i></button></div>
     <form id="add-ph-form" onsubmit="handleCreatePhotographer(event)" class="space-y-4">
+      <div class="flex flex-col items-center gap-2">
+        <div class="relative">
+          <img id="aph-img-preview" class="w-20 h-20 rounded-full object-cover ring-4 ring-accent/20 hidden" alt="Photo preview" />
+          <div id="aph-img-placeholder" class="w-20 h-20 rounded-full bg-surface flex items-center justify-center ring-4 ring-accent/20"><i data-lucide="camera" class="w-8 h-8 text-text-secondary"></i></div>
+        </div>
+        <label for="aph-image" class="btn-ghost px-4 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer"><i data-lucide="upload" class="w-3.5 h-3.5"></i> Upload Photo</label>
+        <input id="aph-image" type="file" accept="image/*" class="hidden" onchange="_phImageSelected('aph')" />
+        <input type="hidden" id="aph-avatar" />
+        <button type="button" id="aph-img-remove" onclick="_phRemoveImage('aph')" class="hidden text-xs text-error font-medium hover:underline">Remove photo</button>
+        <div id="aph-img-error" class="hidden text-xs text-error"></div>
+      </div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Full Name *</label><input id="aph-name" type="text" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" placeholder="John Doe" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Email *</label><input id="aph-email" type="email" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" placeholder="john@photopro.ai" /></div>
@@ -188,6 +277,7 @@ async function handleCreatePhotographer(e) {
     role: document.getElementById('aph-role').value,
     availability: document.getElementById('aph-avail').value,
     bio: document.getElementById('aph-bio').value.trim(),
+    avatar: (document.getElementById('aph-avatar') || {}).value || '',
   };
 
   // Frontend validation
@@ -214,6 +304,17 @@ function openEditPhotographerModal(id) {
   openModal(`<div class="p-6">
     <div class="flex items-center justify-between mb-6"><h2 class="text-xl font-bold">Edit Photographer</h2><button onclick="closeModal()" class="btn-action"><i data-lucide="x" class="w-5 h-5"></i></button></div>
     <form id="edit-ph-form" onsubmit="handleUpdatePhotographer(event, '${id}')" class="space-y-4">
+      <div class="flex flex-col items-center gap-2">
+        <div class="relative">
+          <img id="eph-img-preview" class="w-20 h-20 rounded-full object-cover ring-4 ring-accent/20 hidden" alt="Photo preview" />
+          <div id="eph-img-placeholder" class="w-20 h-20 rounded-full bg-surface flex items-center justify-center ring-4 ring-accent/20"><i data-lucide="camera" class="w-8 h-8 text-text-secondary"></i></div>
+        </div>
+        <label for="eph-image" class="btn-ghost px-4 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer"><i data-lucide="upload" class="w-3.5 h-3.5"></i> Upload Photo</label>
+        <input id="eph-image" type="file" accept="image/*" class="hidden" onchange="_phImageSelected('eph')" />
+        <input type="hidden" id="eph-avatar" />
+        <button type="button" id="eph-img-remove" onclick="_phRemoveImage('eph')" class="hidden text-xs text-error font-medium hover:underline">Remove photo</button>
+        <div id="eph-img-error" class="hidden text-xs text-error"></div>
+      </div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Full Name *</label><input id="eph-name" type="text" required value="${esc(p.name)}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Email *</label><input id="eph-email" type="email" required value="${esc(p.email)}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
@@ -240,6 +341,9 @@ function openEditPhotographerModal(id) {
       </div>
     </form>
   </div>`);
+  // Prefill the uploader with the existing photo (kept out of the template to avoid escaping a large data-URL)
+  document.getElementById('eph-avatar').value = p.avatar || '';
+  _phRefreshPreview('eph');
 }
 
 async function handleUpdatePhotographer(e, id) {
@@ -256,6 +360,7 @@ async function handleUpdatePhotographer(e, id) {
     role: document.getElementById('eph-role').value,
     availability: document.getElementById('eph-avail').value,
     bio: document.getElementById('eph-bio').value.trim(),
+    avatar: (document.getElementById('eph-avatar') || {}).value || '',
   };
 
   // Frontend validation

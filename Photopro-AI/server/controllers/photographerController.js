@@ -9,7 +9,7 @@ const Photographer = require('../models/Photographer');
  */
 function _validatePhotographerData(body, isUpdate = false) {
   const errors = [];
-  const { name, email, phone, specialization, projects, rating } = body;
+  const { name, email, phone, specialization, projects, rating, avatar } = body;
 
   // ── REQUIRED FIELD CHECKS (only enforced on CREATE, not partial update) ──
   // Name, email, and specialization are mandatory for new photographers
@@ -66,6 +66,17 @@ function _validatePhotographerData(body, isUpdate = false) {
     const r = parseFloat(rating);
     if (isNaN(r) || r < 0 || r > 5) {
       errors.push('Rating must be between 0 and 5.');
+    }
+  }
+
+  // ── AVATAR: optional; base64 image data-URL (from the image uploader) or a plain image URL ──
+  if (avatar !== undefined && avatar !== null && avatar !== '') {
+    if (typeof avatar !== 'string' || !avatar.trim()) {
+      errors.push('Avatar must be a non-empty string.');
+    } else if (avatar.startsWith('data:') && !avatar.startsWith('data:image/')) {
+      errors.push('Avatar must be an image (data:image/... or an image URL).');
+    } else if (avatar.length > 1500000) {
+      errors.push('Avatar image is too large. Please upload a smaller image.');
     }
   }
 
