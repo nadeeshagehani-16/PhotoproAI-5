@@ -1,5 +1,6 @@
 const ServiceBooking = require('../models/ServiceBooking');
 const mongoose = require('mongoose');
+const { notifyNewServiceBooking } = require('./notificationController');
 
 // ── Shared validation helper for service booking data ──
 /**
@@ -138,6 +139,8 @@ exports.createServiceBooking = async (req, res, next) => {
     }
 
     const booking = await ServiceBooking.create(req.body);
+    // Non-blocking notification for the new booking
+    notifyNewServiceBooking(booking).catch(() => {});
     res.status(201).json({ success: true, message: 'Service booking created successfully', data: booking });
   } catch (error) { next(error); }
 };

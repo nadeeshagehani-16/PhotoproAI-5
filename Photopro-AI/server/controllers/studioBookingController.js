@@ -1,5 +1,6 @@
 const StudioBooking = require('../models/StudioBooking');
 const mongoose = require('mongoose');
+const { notifyNewStudioBooking } = require('./notificationController');
 
 // ── Shared validation helper for studio booking data ──
 /**
@@ -131,6 +132,8 @@ exports.createStudioBooking = async (req, res, next) => {
     }
 
     const booking = await StudioBooking.create(req.body);
+    // Non-blocking notification for the new studio booking
+    notifyNewStudioBooking(booking).catch(() => {});
     res.status(201).json({ success: true, message: 'Studio booking created', data: booking });
   } catch (error) { next(error); }
 };

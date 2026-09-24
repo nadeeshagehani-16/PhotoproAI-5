@@ -1,4 +1,5 @@
 const Customer = require('../models/Customer');
+const { notifyNewCustomer } = require('./notificationController');
 
 // ── Allowed customer status values ──
 const STATUSES = ['Active', 'Inactive'];
@@ -108,6 +109,8 @@ exports.createCustomer = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'A customer with this email already exists.' });
     }
     const customer = await Customer.create(req.body);
+    // Non-blocking notification for the new client
+    notifyNewCustomer(customer).catch(() => {});
     res.status(201).json({ success: true, message: 'Customer created', data: customer });
   } catch (error) { next(error); }
 };

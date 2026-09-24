@@ -31,10 +31,23 @@ function buildSidebar() {
   nav.innerHTML = NAV_ITEMS.map(item => {
     const active = item.id === currentPage ? 'active' : '';
     const badge = item.badge ? `<span class="badge">${item.badge}</span>` : '';
-    const notif = item.id === 'notifications' ? `<span class="badge">${MOCK.notifications.filter(n=>!n.read).length}</span>` : '';
+    const notif = item.id === 'notifications' ? `<span class="badge notif-count-badge hidden">0</span>` : '';
     return `<div class="nav-item ${active}" onclick="navigate('${item.id}')"><i data-lucide="${item.icon}" class="w-[18px] h-[18px]"></i><span>${item.label}</span>${badge}${notif}</div>`;
   }).join('');
   lucide.createIcons();
+  refreshNotifBadge();
+}
+
+// Live unread-notification count in the sidebar; silent no-op when the backend is unreachable
+function refreshNotifBadge() {
+  if (typeof api === 'undefined' || !api || !api.getToken()) return;
+  api.getNotifications().then(res => {
+    const count = res.unread || 0;
+    document.querySelectorAll('.notif-count-badge').forEach(el => {
+      el.textContent = count;
+      el.classList.toggle('hidden', count === 0);
+    });
+  }).catch(() => {});
 }
 
 function navigate(page, param) {

@@ -1,5 +1,6 @@
 const Payment = require('../models/Payment');
 const mongoose = require('mongoose');
+const { notifyNewPayment } = require('./notificationController');
 
 // ── Allowed payment methods ──
 const METHODS = ['Credit Card', 'Debit Card', 'Bank Transfer', 'Cash', 'Online'];
@@ -108,6 +109,8 @@ exports.createPayment = async (req, res, next) => {
     }
 
     const payment = await Payment.create(req.body);
+    // Non-blocking notification for the new payment
+    notifyNewPayment(payment).catch(() => {});
     res.status(201).json({ success: true, message: 'Payment created successfully', data: payment });
   } catch (error) { next(error); }
 };

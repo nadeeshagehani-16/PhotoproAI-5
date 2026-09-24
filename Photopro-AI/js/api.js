@@ -38,9 +38,12 @@ const api = {
       const data = await res.json();
 
       if (res.status === 401) {
-        // Only force logout if this was a real session that expired
+        // Only force logout if this was a real session that expired.
+        // A 401 from the password-change endpoint means the CURRENT password
+        // was wrong — the session token itself is still valid, so keep it.
         const isDemoToken = token && token.endsWith('.demo');
-        if (!isDemoToken) {
+        const isPasswordMismatch = path === '/auth/password';
+        if (!isDemoToken && !isPasswordMismatch) {
           this.clearAuth();
           document.getElementById('app-shell')?.classList.add('hidden');
           document.getElementById('auth-screen')?.classList.remove('hidden');
@@ -81,6 +84,19 @@ const api = {
     return res;
   },
   async getMe() { return this.get('/auth/me'); },
+  async updateProfile(body) { return this.put('/auth/profile', body); },
+  async changePassword(currentPassword, newPassword) { return this.put('/auth/password', { currentPassword, newPassword }); },
+
+  // ── Notifications ──
+  async getNotifications() { return this.get('/notifications'); },
+  async createNotification(body) { return this.post('/notifications', body); },
+  async markNotificationRead(id) { return this.put(`/notifications/${id}/read`); },
+  async markAllNotificationsRead() { return this.put('/notifications/read-all'); },
+  async deleteNotification(id) { return this.delete(`/notifications/${id}`); },
+
+  // ── Settings ──
+  async getSettings() { return this.get('/settings'); },
+  async updateSettings(body) { return this.put('/settings', body); },
 
   // ── Customers ──
   async getCustomers() { return this.get('/customers'); },
@@ -90,8 +106,12 @@ const api = {
   async deleteCustomer(id) { return this.delete(`/customers/${id}`); },
 
   // ── Users ──
+  // NOTE: named getUserById (not getUser) — the token-management block above
+  // already owns the getUser() name for the stored-session user; a duplicate
+  // key would silently override it and turn every api.getUser() call into an
+  // HTTP request to /users/undefined.
   async getUsers() { return this.get('/users'); },
-  async getUser(id) { return this.get(`/users/${id}`); },
+  async getUserById(id) { return this.get(`/users/${id}`); },
   async createUser(body) { return this.post('/users', body); },
   async updateUser(id, body) { return this.put(`/users/${id}`, body); },
   async deleteUser(id) { return this.delete(`/users/${id}`); },
