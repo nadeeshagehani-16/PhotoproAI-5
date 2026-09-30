@@ -16,7 +16,6 @@ const NAV_ITEMS = [
   { id:'team', label:'Photographers', icon:'user-cog' },
   { id:'studios', label:'Studios', icon:'building-2' },
   { id:'studio-bookings', label:'Studio Bookings', icon:'calendar-clock' },
-  { id:'reports', label:'Reports & Analytics', icon:'bar-chart-3' },
   { id:'ai-insights', label:'AI Insights', icon:'brain', badge:'AI' },
   { id:'notifications', label:'Notifications', icon:'bell' },
   { id:'settings', label:'Settings', icon:'settings' },
@@ -79,7 +78,9 @@ function navigate(page, param) {
     'invoices': renderInvoices, 'deposits': renderDeposits,
     'team': renderTeam,
     'studios': renderStudios, 'studio-bookings': renderStudioBookings,
-    'reports': renderReports, 'ai-insights': renderAIInsights,
+    'ai-insights': renderAIInsights,
+    'gallery': renderGallery, 'ai-studio': renderAIStudio, 'invoices': renderInvoices,
+    'team': renderTeam, 'ai-insights': renderAIInsights,
     'notifications': renderNotifications, 'settings': renderSettings, 'client-portal': renderClientPortal,
   };
   if (routes[page]) routes[page](param);
