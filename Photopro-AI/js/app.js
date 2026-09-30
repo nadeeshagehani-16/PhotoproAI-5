@@ -79,8 +79,6 @@ function navigate(page, param) {
     'team': renderTeam,
     'studios': renderStudios, 'studio-bookings': renderStudioBookings,
     'ai-insights': renderAIInsights,
-    'gallery': renderGallery, 'ai-studio': renderAIStudio, 'invoices': renderInvoices,
-    'team': renderTeam, 'ai-insights': renderAIInsights,
     'notifications': renderNotifications, 'settings': renderSettings, 'client-portal': renderClientPortal,
   };
   if (routes[page]) routes[page](param);
