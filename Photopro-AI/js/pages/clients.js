@@ -33,6 +33,45 @@ function _clientMapUrl(address) {
   return `https://maps.google.com/maps?q=${q}&output=embed`;
 }
 
+// ADDED BY TEAM - Client Booking Analytics: derive live per-client booking stats
+// (number of bookings, total spent = sum of booking cost, last booking date) from
+// ServiceBooking and StudioBooking records, because the stored bookings/spent/
+// lastBooking fields on Customer are never updated when bookings are created.
+let _clientBookingStats = null; // live mode: { [customerId]: { bookings, spent, lastBooking } }; demo mode: null
+
+function _clientCustomerId(b) {
+  const c = b && b.customerId; // populated as { _id, name, email } by the API
+  return c ? String(c._id || c) : '';
+}
+
+function _computeClientBookingStats(serviceBookings, studioBookings) {
+  const stats = {};
+  const bump = (b, cost, when) => {
+    if (!b || b.status === 'Cancelled') return; // cancelled bookings don't count
+    const key = _clientCustomerId(b);
+    if (!key) return;
+    const s = stats[key] || (stats[key] = { bookings: 0, spent: 0, lastBooking: 0 });
+    s.bookings += 1;
+    s.spent += Number(cost) || 0;
+    const t = when ? new Date(when).getTime() : NaN;
+    if (!isNaN(t) && t > s.lastBooking) s.lastBooking = t;
+  };
+  (serviceBookings || []).forEach(b => bump(b, b.amount, b.date));
+  (studioBookings || []).forEach(b => bump(b, b.totalCost, b.date));
+  return stats;
+}
+
+// Overwrite the stored bookings/spent/lastBooking fields with live values.
+// In demo mode (stats === null) the stored/MOCK fields are kept untouched.
+function _applyClientStats(c) {
+  if (!c || !_clientBookingStats) return c;
+  const s = _clientBookingStats[String(c._id)] || { bookings: 0, spent: 0, lastBooking: 0 };
+  c.bookings = s.bookings;
+  c.spent = s.spent;
+  c.lastBooking = s.lastBooking ? new Date(s.lastBooking).toISOString() : null;
+  return c;
+}
+
 async function renderClients() {
   const el = document.getElementById('page-content');
   el.innerHTML = `
@@ -45,11 +84,22 @@ async function renderClients() {
 
 async function loadClients() {
   try {
-    const res = await api.getCustomers();
+    // ADDED BY TEAM - Client Booking Analytics: fetch service + studio bookings alongside
+    // the client list so Bookings / Total Spent / Last Booking reflect real bookings
+    const [res, svcRes, stuRes] = await Promise.all([
+      api.getCustomers(),
+      api.getServiceBookings().catch(() => null),
+      api.getStudioBookings().catch(() => null),
+    ]);
     _clientsCache = res.data;
+    _clientBookingStats = svcRes || stuRes
+      ? _computeClientBookingStats((svcRes && svcRes.data) || [], (stuRes && stuRes.data) || [])
+      : null; // both booking endpoints failed — keep the stored fields
+    _clientsCache.forEach(c => _applyClientStats(c));
     renderClientsTable(_clientsCache);
   } catch (err) {
     // Fall back to mock data for demo mode
+    _clientBookingStats = null; // keep the MOCK bookings/spent/lastBooking values
     _clientsCache = MOCK.clients || [];
     if (_clientsCache.length > 0) {
       renderClientsTable(_clientsCache);
@@ -292,6 +342,8 @@ async function renderClientDetail(id) {
     try {
       const res = await api.getCustomer(id);
       c = res.data;
+      // ADDED BY TEAM - Client Booking Analytics: live stats on direct detail fetch too
+      _applyClientStats(c);
     } catch (err) {
       el.innerHTML = `<button onclick="navigate('clients')" class="flex items-center gap-2 text-sm text-text-secondary hover:text-primary transition mb-6"><i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Clients</button><div class="text-center py-16"><i data-lucide="alert-circle" class="w-12 h-12 text-error mx-auto mb-3"></i><p class="text-error font-medium">${err.message}</p></div>`;
       lucide.createIcons();
