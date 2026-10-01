@@ -311,7 +311,10 @@
   function chartConfig(data) {
     const c = data.chart;
     if (c.type === 'doughnut') {
-      return { type: 'doughnut', data: { labels: c.labels, datasets: [{ data: c.data, backgroundColor: PALETTE, borderWidth: 2, borderColor: '#ffffff' }] }, options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }, cutout: '58%' } };
+      // ADDED BY TEAM - Chart Sizing: doughnut charts default to a full-width square
+      // (aspectRatio 1); maintainAspectRatio:false makes the pie fill the compact
+      // fixed-height wrapper rendered by renderBody instead of the whole card width.
+      return { type: 'doughnut', data: { labels: c.labels, datasets: [{ data: c.data, backgroundColor: PALETTE, borderWidth: 2, borderColor: '#ffffff' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }, cutout: '58%' } };
     }
     return { type: 'bar', data: { labels: c.labels, datasets: [{ label: c.label, data: c.data, backgroundColor: GOLD, borderRadius: 6, maxBarThickness: 42 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 10 }, maxRotation: 40, minRotation: 0 } } } } };
   }
@@ -332,10 +335,17 @@
         data.table.rows.map(r => '<tr class="border-b border-gray-50">' + r.map(v => '<td class="py-2 pr-3 text-gray-600">' + esc(v) + '</td>').join('') + '</tr>').join('') +
         '</tbody></table></div>';
     }
+    // ADDED BY TEAM - Chart Sizing: pie/doughnut charts render inside a compact
+    // fixed-height wrapper (Chart.js fills the parent exactly when maintainAspectRatio
+    // is false); bar charts keep their original full-width sizing.
+    const isPie = data.chart && data.chart.type === 'doughnut';
+    const chartCanvas = isPie
+      ? '<div style="position:relative;height:220px"><canvas id="page-reports-chart"></canvas></div>'
+      : '<canvas id="page-reports-chart" height="150"></canvas>';
     body.innerHTML =
       '<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">' + data.kpis.map(kpiCard).join('') + '</div>' +
       '<div class="grid grid-cols-1 lg:grid-cols-5 gap-4">' +
-        '<div class="lg:col-span-3 bg-white rounded-2xl border border-gray-100 p-5 shadow-sm"><p class="text-sm font-semibold text-gray-700 mb-3">' + esc(data.chart.label) + '</p><canvas id="page-reports-chart" height="150"></canvas></div>' +
+        '<div class="lg:col-span-3 bg-white rounded-2xl border border-gray-100 p-5 shadow-sm"><p class="text-sm font-semibold text-gray-700 mb-3">' + esc(data.chart.label) + '</p>' + chartCanvas + '</div>' +
         '<div class="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">' + (tableHtml || '<p class="text-xs text-gray-400">No rows to display.</p>') + '</div>' +
       '</div>';
     try { drawChart(data); } catch (e) { /* ignore */ }
