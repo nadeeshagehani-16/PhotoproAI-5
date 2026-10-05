@@ -139,20 +139,40 @@
     },
     team: {
       title: 'Photographers',
-      fetch: () => fetchLists('/photographers').then(([ph]) => ph),
-      compute(list) {
-        const ratings = list.map(p => Number(p.rating) || 0);
-        const avgRating = ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : '0.0';
-        const top = list.slice().sort((a, b) => (b.projects || 0) - (a.projects || 0)).slice(0, 8);
+      // ADDED BY TEAM - Live Photographer Stats: the model's projects/rating fields are
+      // never written by any form (always 0), so the report computes real assignment
+      // stats from service bookings instead. photographerId arrives populated as
+      // {_id, name, ...} in list responses, so both object and raw-id forms are handled.
+      fetch: () => fetchLists('/photographers', '/service-bookings').then(([ph, bookings]) => ({ ph, bookings })),
+      compute(d) {
+        const list = d.ph;
+        const pidOf = b => {
+          const p = b && b.photographerId;
+          return p ? String(typeof p === 'object' ? (p._id || '') : p) : '';
+        };
+        // non-cancelled bookings per photographer (count + revenue), same rule as the Clients table stats
+        const counts = {}, revenue = {};
+        (d.bookings || []).forEach(b => {
+          if (!b || b.status === 'Cancelled') return;
+          const k = pidOf(b);
+          if (!k) return;
+          counts[k] = (counts[k] || 0) + 1;
+          revenue[k] = (revenue[k] || 0) + (Number(b.amount) || 0);
+        });
+        const bcount = id => counts[String(id)] || 0;
+        const brev = id => revenue[String(id)] || 0;
+        const totalBookings = list.reduce((s, p) => s + bcount(p._id), 0);
+        const totalRevenue = list.reduce((s, p) => s + brev(p._id), 0);
+        const top = list.slice().sort((a, b) => bcount(b._id) - bcount(a._id)).slice(0, 8);
         return {
           kpis: [
             kpi('Photographers', String(list.length), 'camera'),
             kpi('Active', String(byStatus(list, 'Active')), 'check-circle'),
-            kpi('Avg Rating', avgRating + ' / 5', 'star'),
-            kpi('Total Projects', String(sumBy(list, p => p.projects)), 'images'),
+            kpi('Total Assignments', String(totalBookings), 'calendar-check'),
+            kpi('Assigned Revenue', fmtMoney(totalRevenue), 'banknote'),
           ],
-          chart: bar('Projects by photographer', top.map(p => p.name), top.map(p => Number(p.projects) || 0)),
-          table: { head: ['Name', 'Specialization', 'Rating', 'Projects'], rows: top.map(p => [p.name, p.specialization || '—', (Number(p.rating) || 0) + '/5', String(p.projects || 0)]) },
+          chart: bar('Bookings by photographer', top.map(p => p.name), top.map(p => bcount(p._id))),
+          table: { head: ['Name', 'Specialization', 'Bookings', 'Revenue'], rows: top.map(p => [p.name, p.specialization || '—', String(bcount(p._id)), fmtMoney(brev(p._id))]) },
         };
       },
     },

@@ -98,6 +98,11 @@ const api = {
   async getSettings() { return this.get('/settings'); },
   async updateSettings(body) { return this.put('/settings', body); },
 
+  // ── Email (SendGrid test mail — the API key stays server-side only) ──
+  // ADDED BY TEAM - Email Integration
+  async getEmailStatus() { return this.get('/email/status'); },
+  async sendTestEmail(to) { return this.post('/email/test', { to }); },
+
   // ── Customers ──
   async getCustomers() { return this.get('/customers'); },
   async getCustomer(id) { return this.get(`/customers/${id}`); },

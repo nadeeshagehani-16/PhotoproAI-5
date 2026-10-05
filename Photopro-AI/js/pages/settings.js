@@ -144,6 +144,17 @@ function renderSettingsForm() {
             <div class="w-full flex items-center gap-3 p-3 text-left"><i data-lucide="monitor" class="w-5 h-5 text-text-secondary"></i><div><p class="text-sm font-medium">Active Sessions</p><p class="text-xs text-text-secondary">This device — current session</p></div></div>
           </div>
         </div>
+        <!-- Email Integration (SendGrid) -->
+        <!-- ADDED BY TEAM - Email Integration -->
+        <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light">
+          <h3 class="font-bold mb-4">Email Integration</h3>
+          <div id="em-status" class="mb-4"></div>
+          <label for="em-to" class="block text-sm font-medium text-text-secondary mb-1">Send a Test Email</label>
+          <input id="em-to" type="email" value="${u.email || ''}" placeholder="recipient@example.com" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent" />
+          <div id="em-msg" class="hidden text-xs mt-2 rounded-lg px-3 py-2 border"></div>
+          <button id="em-send-btn" type="button" onclick="sendTestEmailFromSettings()" class="btn-gold w-full mt-3 py-2.5 text-sm flex items-center justify-center gap-2"><i data-lucide="send" class="w-4 h-4"></i> Send Test Email</button>
+          <p class="text-xs text-text-secondary mt-2">Uses the SendGrid Mail Send API. The API key is stored server-side only.</p>
+        </div>
         <!-- AI Settings -->
         <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light">
           <h3 class="font-bold mb-4">AI Settings</h3>
@@ -167,6 +178,74 @@ function renderSettingsForm() {
       </div>
     </div>`;
   lucide.createIcons();
+  _loadEmailStatus();
+}
+
+// ── Email Integration (SendGrid) — status badge + Send Test Email ──
+// ADDED BY TEAM - Email Integration
+const _SET_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function _loadEmailStatus() {
+  const box = document.getElementById('em-status');
+  if (!box) return; // user navigated away before the card rendered
+  if (_setDemoMode) {
+    box.innerHTML = '<span class="inline-flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"><i data-lucide="info" class="w-4 h-4"></i>Demo mode — start the backend server to use email.</span>';
+    lucide.createIcons();
+    return;
+  }
+  box.innerHTML = '<span class="text-xs text-text-secondary">Checking SendGrid configuration…</span>';
+  try {
+    const res = await api.getEmailStatus();
+    const d = res.data || {};
+    if (d.configured) {
+      box.innerHTML = `<span class="inline-flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2"><i data-lucide="check-circle" class="w-4 h-4"></i>SendGrid connected — sending as ${d.fromEmail}</span>`;
+    } else {
+      box.innerHTML = '<span class="inline-flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"><i data-lucide="alert-triangle" class="w-4 h-4 flex-shrink-0"></i><span>SendGrid not configured. Add <b>SENDGRID_API_KEY</b> and <b>SENDGRID_FROM_EMAIL</b> to <b>server/.env</b>, then restart the backend.</span></span>';
+    }
+  } catch (err) {
+    box.innerHTML = `<span class="inline-flex items-center gap-2 text-xs text-error bg-red-50 border border-red-200 rounded-lg px-3 py-2"><i data-lucide="alert-circle" class="w-4 h-4"></i>${err.message}</span>`;
+  }
+  lucide.createIcons();
+}
+
+async function sendTestEmailFromSettings() {
+  if (_setDemoMode) { showToast('Demo mode — start the backend server to send emails.', 'alert-circle'); return; }
+  const btn = document.getElementById('em-send-btn');
+  const input = document.getElementById('em-to');
+  const msg = document.getElementById('em-msg');
+  const to = ((input && input.value) || '').trim();
+  const showMsg = (text, ok) => {
+    if (!msg) return;
+    msg.textContent = text;
+    msg.className = 'text-xs mt-2 rounded-lg px-3 py-2 border ' + (ok ? 'text-green-700 bg-green-50 border-green-200' : 'text-error bg-red-50 border-red-200');
+  };
+
+  // ── recipient validation ──
+  if (!to) { showMsg('Please enter a recipient email address.', false); if (input) input.focus(); return; }
+  if (!_SET_EMAIL_RE.test(to)) { showMsg('Please enter a valid email address.', false); if (input) input.focus(); return; }
+
+  // ── loading state: disable button + spinner while the request is in flight ──
+  if (msg) msg.classList.add('hidden');
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('opacity-60', 'cursor-not-allowed');
+    btn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Sending…';
+  }
+  try {
+    const res = await api.sendTestEmail(to);
+    showToast(res.message || `Test email sent to ${to}`);
+    showMsg(res.message || `Test email sent to ${to}.`, true);
+  } catch (err) {
+    showToast(err.message, 'alert-circle');
+    showMsg(err.message, false);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove('opacity-60', 'cursor-not-allowed');
+      btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> Send Test Email';
+      lucide.createIcons();
+    }
+  }
 }
 
 function switchSettingsTab(el) {

@@ -23,6 +23,7 @@ const aiRoutes = require('./routes/aiRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const emailRoutes = require('./routes/emailRoutes');
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/email', emailRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
