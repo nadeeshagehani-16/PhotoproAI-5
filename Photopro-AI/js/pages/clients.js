@@ -3,7 +3,18 @@ let _clientsCache = [];
 
 // ADDED BY TEAM - Form Validation: lowercase-only email pattern (rejects uppercase letters, #, $, spaces, etc.)
 const _CLIENT_EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
-const _CLIENT_PHONE_RE = /^\+?[\d\s\-().]{7,20}$/;
+// ADDED BY TEAM - Phone Validation: digits only (0-9), 7-15 digits — no +, spaces, dashes, letters or negative values
+const _CLIENT_PHONE_RE = /^\d{7,15}$/;
+
+// ADDED BY TEAM - Phone Validation: keep only digits 0-9 in the phone fields while typing or pasting
+// (the input event covers both; change covers browser autofill), mirroring the digits-only rule
+['input', 'change'].forEach(evt => document.addEventListener(evt, (e) => {
+  const el = e.target;
+  if (el && (el.id === 'ac-phone' || el.id === 'ec-phone')) {
+    const digitsOnly = el.value.replace(/[^0-9]/g, '');
+    if (digitsOnly !== el.value) el.value = digitsOnly;
+  }
+}));
 
 // ADDED BY TEAM - Form Validation: validates client create/edit form (required fields, email format, phone format, length limits)
 function _validateClientForm(data) {
@@ -12,7 +23,7 @@ function _validateClientForm(data) {
   if (!data.email) errors.push('Email is required.');
   else if (!_CLIENT_EMAIL_RE.test(data.email.trim())) errors.push('Email format is invalid. Use a lowercase address like name@example.com (uppercase letters and characters such as # or $ are not allowed).');
   if (!data.phone) errors.push('Phone is required.');
-  else if (!_CLIENT_PHONE_RE.test(data.phone.trim())) errors.push('Phone must be 7-15 digits, optionally starting with +.');
+  else if (!_CLIENT_PHONE_RE.test(data.phone.trim())) errors.push('Phone must contain only digits (0-9) and be 7-15 digits long (letters, symbols, spaces, + or negative values are not allowed).');
   if (data.name && data.name.trim().length > 100) errors.push('Name cannot exceed 100 characters.');
   if (data.address && data.address.trim().length > 200) errors.push('Address cannot exceed 200 characters.');
   if (data.notes && data.notes.length > 1000) errors.push('Notes cannot exceed 1000 characters.');
@@ -198,7 +209,7 @@ function openAddClientModal() {
       <div><label class="block text-sm font-medium text-text-secondary mb-1">Full Name *</label><input id="ac-name" type="text" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" placeholder="John Doe" /></div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Email *</label><input id="ac-email" type="email" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" placeholder="john@email.com" /></div>
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Phone *</label><input id="ac-phone" type="tel" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" placeholder="+94 77 000 0000" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Phone *</label><input id="ac-phone" type="tel" inputmode="numeric" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" placeholder="0771234567" /></div>
       </div>
       <div><label class="block text-sm font-medium text-text-secondary mb-1">Address</label><input id="ac-address" type="text" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" placeholder="123 Main St, City" /></div>
       <div><label class="block text-sm font-medium text-text-secondary mb-1">Notes</label><textarea id="ac-notes" rows="3" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none resize-none" placeholder="Special requirements..."></textarea></div>
@@ -252,7 +263,7 @@ function openEditClientModal(id) {
       <div><label class="block text-sm font-medium text-text-secondary mb-1">Full Name *</label><input id="ec-name" type="text" required value="${c.name}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Email *</label><input id="ec-email" type="email" required value="${c.email}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Phone *</label><input id="ec-phone" type="tel" required value="${c.phone || ''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Phone *</label><input id="ec-phone" type="tel" inputmode="numeric" required value="${c.phone || ''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
       </div>
       <div><label class="block text-sm font-medium text-text-secondary mb-1">Address</label><input id="ec-address" type="text" value="${c.address || ''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
       <div><label class="block text-sm font-medium text-text-secondary mb-1">Notes</label><textarea id="ec-notes" rows="3" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none resize-none">${c.notes || ''}</textarea></div>

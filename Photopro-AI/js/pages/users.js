@@ -3,7 +3,18 @@ let _usersCache = [];
 
 // ADDED BY TEAM - Form Validation: lowercase-only email pattern (rejects uppercase letters, #, $, spaces, etc.)
 const _USER_EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/;
-const _USER_PHONE_RE = /^\+?[\d\s\-().]{7,20}$/;
+// ADDED BY TEAM - Phone Validation: digits only (0-9), 7-15 digits — no +, spaces, dashes, letters or negative values
+const _USER_PHONE_RE = /^\d{7,15}$/;
+
+// ADDED BY TEAM - Phone Validation: keep only digits 0-9 in the phone fields while typing or pasting
+// (the input event covers both; change covers browser autofill), mirroring the digits-only rule
+['input', 'change'].forEach(evt => document.addEventListener(evt, (e) => {
+  const el = e.target;
+  if (el && (el.id === 'au-phone' || el.id === 'eu-phone')) {
+    const digitsOnly = el.value.replace(/[^0-9]/g, '');
+    if (digitsOnly !== el.value) el.value = digitsOnly;
+  }
+}));
 
 // ADDED BY TEAM - Form Validation: validates user create/edit form (required fields, email format, password length, phone format)
 function _validateUserForm(data) {
@@ -15,7 +26,7 @@ function _validateUserForm(data) {
     if (!data.password) errors.push('Password is required.');
     else if (data.password.length < 6) errors.push('Password must be at least 6 characters.');
   }
-  if (data.phone && !_USER_PHONE_RE.test(data.phone.trim())) errors.push('Phone must be 7-15 digits, optionally starting with +.');
+  if (data.phone && !_USER_PHONE_RE.test(data.phone.trim())) errors.push('Phone must contain only digits (0-9) and be 7-15 digits long (letters, symbols, spaces, + or negative values are not allowed).');
   if (data.name && data.name.trim().length > 100) errors.push('Name cannot exceed 100 characters.');
   if (data.address && data.address.trim().length > 200) errors.push('Address cannot exceed 200 characters.');
   return errors;
@@ -153,7 +164,7 @@ function openAddUserModal() {
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Password *</label><input id="au-password" type="password" required minlength="6" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" placeholder="Min 6 characters" /></div>
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Phone</label><input id="au-phone" type="tel" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" placeholder="+94 77 000 0000" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Phone</label><input id="au-phone" type="tel" inputmode="numeric" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" placeholder="0771234567" /></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Role *</label><select id="au-role" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none"><option value="Admin">Admin</option><option value="Staff">Staff</option><option value="Customer" selected>Customer</option></select></div>
@@ -210,7 +221,7 @@ function openEditUserModal(id) {
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Email *</label><input id="eu-email" type="email" required value="${u.email}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div><label class="block text-sm font-medium text-text-secondary mb-1">Phone</label><input id="eu-phone" type="tel" value="${u.phone || ''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
+        <div><label class="block text-sm font-medium text-text-secondary mb-1">Phone</label><input id="eu-phone" type="tel" inputmode="numeric" value="${u.phone || ''}" class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none" /></div>
         <div><label class="block text-sm font-medium text-text-secondary mb-1">Role *</label><select id="eu-role" required class="w-full px-4 py-2.5 rounded-xl border border-border-light text-sm bg-white focus:ring-2 focus:ring-accent/20 outline-none">
           <option value="Admin" ${u.role==='Admin'?'selected':''}>Admin</option>
           <option value="Staff" ${u.role==='Staff'?'selected':''}>Staff</option>

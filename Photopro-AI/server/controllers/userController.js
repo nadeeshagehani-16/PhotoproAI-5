@@ -7,8 +7,8 @@ const ROLES = ['Admin', 'Staff', 'Customer'];
 // ── Email regex: standard RFC-style, rejects special chars like # $ % ^ & * ──
 const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-// ── Phone regex: 7–15 digits, optional leading + for country code ──
-const PHONE_RE = /^\+?\d{7,15}$/;
+// ── Phone regex: digits only (0-9), 7–15 digits — no +, spaces, symbols, letters or negative values ──
+const PHONE_RE = /^\d{7,15}$/;
 
 /**
  * Validate user data before create or update.
@@ -45,10 +45,9 @@ function _validateUserData(body, isUpdate = false) {
     if (typeof password !== 'string' || password.length < 6) errors.push('Password must be at least 6 characters.');
   }
 
-  // ── PHONE FORMAT: strip spaces/dashes/parens/dots, then check 7–15 digit range ──
+  // ── PHONE FORMAT: only digits 0-9 allowed, 7–15 digits long (rejects +, spaces, symbols, letters and negative values) ──
   if (phone !== undefined && phone !== null && phone !== '') {
-    const p = String(phone).replace(/[\s\-().]/g, '');
-    if (!PHONE_RE.test(p)) errors.push('Phone must be 7-15 digits, optionally starting with +.');
+    if (!PHONE_RE.test(String(phone).trim())) errors.push('Phone must contain only digits (0-9) and be 7-15 digits long (letters, symbols, spaces, + or negative values are not allowed).');
   }
 
   // ── ROLE ENUM: must be Admin, Staff, or Customer ──
