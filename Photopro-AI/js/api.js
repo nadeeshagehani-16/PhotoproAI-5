@@ -25,13 +25,25 @@ const api = {
   },
 
   // Core fetch wrapper
-  async request(method, path, body = null) {
+  // ADDED BY TEAM - Request Timeout: every API call is bounded by an AbortController
+  // so a hung backend (restart, MongoDB outage) can never leave the UI stuck on an
+  // endless spinner or an indefinite "Signing in..." state. The request fails with a
+  // clear, actionable message instead. The message deliberately contains
+  // "Cannot connect to server" so the login flow's existing demo-mode fallback
+  // (which matches on that substring) still triggers when the backend is unreachable.
+  // 15s is far longer than any normal local API response yet shorter than the 30s
+  // window UI automation waits for, so the app always fails fast and recovers first.
+  async request(method, path, body = null, timeoutMs = 15000) {
     const headers = { 'Content-Type': 'application/json' };
     const token = this.getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const config = { method, headers };
     if (body) config.body = JSON.stringify(body);
+
+    const controller = new AbortController();
+    config.signal = controller.signal;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const res = await fetch(`${API_BASE}${path}`, config);
@@ -58,10 +70,15 @@ const api = {
 
       return data;
     } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Cannot connect to server: the request timed out. Please ensure the backend is running on port 5000, then try again.');
+      }
       if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
         throw new Error('Cannot connect to server. Please ensure the backend is running on port 5000.');
       }
       throw error;
+    } finally {
+      clearTimeout(timer);
     }
   },
 

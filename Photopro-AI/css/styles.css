@@ -42,10 +42,15 @@ html { scroll-behavior: smooth; }
 .badge-confirmed, .badge-paid, .badge-active, .badge-completed { background: #ECFDF5; color: #065F46; }
 .badge-pending, .badge-in-progress { background: #FEF3C7; color: #92400E; }
 .badge-cancelled, .badge-overdue, .badge-inactive { background: #FEF2F2; color: #991B1B; }
+/* ADDED BY TEAM - Dashboard Upcoming Events: badge styles for studio payment statuses (statusBadge renders badge-unpaid / badge-refunded) */
+.badge-unpaid { background: #F3F4F6; color: #374151; }
+.badge-refunded { background: #EFF6FF; color: #1E40AF; }
 .badge-dot { width: 6px; height: 6px; border-radius: 50%; }
 .badge-confirmed .badge-dot, .badge-paid .badge-dot, .badge-active .badge-dot, .badge-completed .badge-dot { background: #22C55E; }
 .badge-pending .badge-dot, .badge-in-progress .badge-dot { background: #991B1B; }
 .badge-cancelled .badge-dot, .badge-overdue .badge-dot, .badge-inactive .badge-dot { background: #EF4444; }
+.badge-unpaid .badge-dot { background: #6B7280; }
+.badge-refunded .badge-dot { background: #3B82F6; }
 
 /* Action button */
 .btn-action { padding: 0.4rem; border-radius: 0.5rem; color: #6B7280; transition: all 0.15s; cursor: pointer; }
@@ -115,6 +120,11 @@ html { scroll-behavior: smooth; }
 
 /* Responsive table wrapper */
 .table-wrap { overflow-x: auto; border-radius: 1rem; border: 1px solid #E5E7EB; background: white; }
+
+/* Responsive fix - keep the main content column shrinkable: flex items default to
+   min-width:auto, so wide tables/charts would otherwise stretch the whole layout
+   past the viewport and push header buttons (e.g. Add Client) off-screen. */
+#app-shell > .flex-1 { min-width: 0; }
 
 /* Toast notification */
 .toast { position: fixed; bottom: 2rem; right: 2rem; background: #111; color: white; padding: 1rem 1.5rem; border-radius: 1rem; font-size: 0.875rem; font-weight: 500; z-index: 100; animation: slideUp 0.3s ease-out; box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; align-items: center; gap: 0.75rem; }

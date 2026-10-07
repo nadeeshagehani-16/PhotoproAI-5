@@ -89,54 +89,93 @@ function openAddBookingModal() {
   </div>`, 'max-w-3xl');
 }
 
-function renderBookingDetail() {
-  const b = MOCK.bookings[0];
+// ADDED BY TEAM - Dashboard Upcoming Events: real booking detail page. Reads a "type:id"
+// reference passed by the dashboard Upcoming Events cards (navigate('booking-detail', param)),
+// fetches the booking from the existing service/studio booking API and renders its live
+// populated data — replacing the old hardcoded MOCK.bookings[0] page. Read-only view; the
+// _dash* formatting helpers come from dashboard.js (loaded earlier in index.html).
+async function renderBookingDetail(param) {
   const el = document.getElementById('page-content');
-  el.innerHTML = `
-    <button onclick="navigate('bookings')" class="flex items-center gap-2 text-sm text-text-secondary hover:text-primary transition mb-6"><i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Bookings</button>
-    ${pageHeader(`Booking #${b.id}`, b.event + ' Photography Session', `<div class="flex gap-2">${statusBadge(b.status)}<button class="btn-ghost px-4 py-2 text-sm flex items-center gap-2"><i data-lucide="pencil" class="w-4 h-4"></i> Edit</button></div>`)}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div class="lg:col-span-2 space-y-6">
-        <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light">
-          <h3 class="font-bold mb-4">Booking Details</h3>
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-6">
-            <div><p class="text-xs text-text-secondary mb-1">Client</p><p class="font-semibold text-sm">${b.client}</p></div>
-            <div><p class="text-xs text-text-secondary mb-1">Event Type</p><p class="font-semibold text-sm">${b.event}</p></div>
-            <div><p class="text-xs text-text-secondary mb-1">Date</p><p class="font-semibold text-sm">${b.date}</p></div>
-            <div><p class="text-xs text-text-secondary mb-1">Time</p><p class="font-semibold text-sm">${b.start} – ${b.end}</p></div>
-            <div><p class="text-xs text-text-secondary mb-1">Location</p><p class="font-semibold text-sm">${b.location}</p></div>
-            <div><p class="text-xs text-text-secondary mb-1">Photographer</p><p class="font-semibold text-sm">${b.photographer}</p></div>
-            <div><p class="text-xs text-text-secondary mb-1">Package</p><p class="font-semibold text-sm">${b.package}</p></div>
-            <div><p class="text-xs text-text-secondary mb-1">Amount</p><p class="font-bold text-lg text-accent">${formatCurrency(b.amount)}</p></div>
-            <div><p class="text-xs text-text-secondary mb-1">Payment</p>${statusBadge(b.payment)}</div>
+  const ref = (param || '').toString();
+  const sep = ref.indexOf(':');
+  const type = sep > -1 ? ref.slice(0, sep) : '';
+  const id = sep > -1 ? ref.slice(sep + 1) : '';
+  const isStudio = type === 'studio';
+  const backPage = isStudio ? 'studio-bookings' : 'bookings';
+  const backLabel = isStudio ? 'Back to Studio Bookings' : 'Back to Bookings';
+
+  if (!isStudio && type !== 'service') {
+    el.innerHTML = `
+      <button onclick="navigate('bookings')" class="flex items-center gap-2 text-sm text-text-secondary hover:text-primary transition mb-6"><i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Bookings</button>
+      <div class="bg-white rounded-2xl p-12 shadow-card border border-border-light text-center">
+        <i data-lucide="calendar-x" class="w-12 h-12 text-text-secondary mx-auto mb-3"></i>
+        <p class="font-medium">No booking selected</p>
+        <p class="text-sm text-text-secondary mt-1">Open an event from the dashboard Upcoming Events, or pick one from the bookings page.</p>
+      </div>`;
+    lucide.createIcons();
+    return;
+  }
+
+  el.innerHTML = `<div class="flex items-center justify-center py-20"><div class="animate-spin w-8 h-8 border-4 border-accent border-t-transparent rounded-full"></div></div>`;
+
+  try {
+    const res = await api.get((isStudio ? '/studio-bookings/' : '/service-bookings/') + id);
+    const b = res.data;
+    const client = b.customerId || {};
+    const title = isStudio ? (b.studioId?.name || 'Studio Booking') : (b.event || 'Service Booking');
+    const subtitle = isStudio ? (b.purpose || 'Studio session') : (b.packageId?.name || 'Photography session');
+    const payment = isStudio ? (b.paymentStatus || 'Unpaid') : (b.payment || 'Pending');
+    const fields = [
+      { label: 'Booking Type', value: isStudio ? 'Studio Session' : 'On-location Service' },
+      { label: 'Client', value: client.name || '—' },
+      ...(!isStudio ? [{ label: 'Event Type', value: b.event || '—' }, { label: 'Package', value: b.packageId?.name || '—' }, { label: 'Photographer', value: b.photographerId?.name || 'Unassigned' }] : []),
+      ...(isStudio ? [{ label: 'Studio', value: b.studioId?.name || '—' }, { label: 'Purpose', value: b.purpose || '—' }] : []),
+      { label: 'Date', value: _dashFmtDate(b.date) },
+      { label: 'Time', value: `${_dashFmtTime(b.startTime)} – ${_dashFmtTime(b.endTime)}` },
+      ...(!isStudio ? [{ label: 'Location', value: b.location || '—' }] : []),
+      ...(b.createdAt ? [{ label: 'Created', value: new Date(b.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }] : []),
+    ];
+
+    el.innerHTML = `
+      <button onclick="navigate('${backPage}')" class="flex items-center gap-2 text-sm text-text-secondary hover:text-primary transition mb-6"><i data-lucide="arrow-left" class="w-4 h-4"></i> ${backLabel}</button>
+      ${pageHeader(title, subtitle, statusBadge(b.status || 'Pending'))}
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 space-y-6">
+          <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light">
+            <h3 class="font-bold mb-4">Booking Details</h3>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-6">
+              ${fields.map(f => `<div><p class="text-xs text-text-secondary mb-1">${f.label}</p><p class="font-semibold text-sm">${f.value}</p></div>`).join('')}
+              <div><p class="text-xs text-text-secondary mb-1">${isStudio ? 'Total Cost' : 'Amount'}</p><p class="font-bold text-lg text-accent">${formatCurrency(Number(isStudio ? b.totalCost : b.amount) || 0)}</p></div>
+              <div><p class="text-xs text-text-secondary mb-1">Payment</p>${statusBadge(payment)}</div>
+            </div>
+          </div>
+          ${b.notes ? `<div class="bg-white rounded-2xl p-6 shadow-card border border-border-light"><h3 class="font-bold mb-3">Notes</h3><p class="text-sm text-text-secondary leading-relaxed">${b.notes}</p></div>` : ''}
+        </div>
+        <div class="space-y-6">
+          <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light text-center">
+            <div class="w-16 h-16 rounded-full bg-surface border border-border-light flex items-center justify-center mx-auto mb-3 text-lg font-bold text-primary">${(client.name || '?').charAt(0).toUpperCase()}</div>
+            <h4 class="font-bold">${client.name || '—'}</h4>
+            ${client.email ? `<p class="text-xs text-text-secondary mt-1">${client.email}</p>` : ''}
+            ${client._id ? `<button onclick="navigate('client-detail', '${client._id}')" class="btn-ghost w-full py-2 text-sm mt-4">View Profile</button>` : ''}
+          </div>
+          <div class="bg-primary rounded-2xl p-6 text-white">
+            <h4 class="font-bold mb-3">When & Where</h4>
+            <div class="space-y-3 text-sm">
+              <div class="flex items-center gap-2"><i data-lucide="calendar" class="w-4 h-4 text-accent"></i><span>${_dashFmtDate(b.date)}</span></div>
+              <div class="flex items-center gap-2"><i data-lucide="clock" class="w-4 h-4 text-accent"></i><span>${_dashFmtTime(b.startTime)} – ${_dashFmtTime(b.endTime)}</span></div>
+              <div class="flex items-center gap-2"><i data-lucide="map-pin" class="w-4 h-4 text-accent"></i><span>${isStudio ? (b.studioId?.location || '—') : (b.location || '—')}</span></div>
+            </div>
           </div>
         </div>
-        <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light">
-          <h3 class="font-bold mb-4">Timeline</h3>
-          <div class="space-y-4">
-            <div class="flex gap-3"><div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0"><i data-lucide="check" class="w-4 h-4 text-green-600"></i></div><div><p class="text-sm font-medium">Booking Created</p><p class="text-xs text-text-secondary">Aug 1, 2026 at 10:00 AM</p></div></div>
-            <div class="flex gap-3"><div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0"><i data-lucide="check" class="w-4 h-4 text-green-600"></i></div><div><p class="text-sm font-medium">Payment Received</p><p class="text-xs text-text-secondary">Aug 1, 2026 at 10:05 AM</p></div></div>
-            <div class="flex gap-3"><div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0"><i data-lucide="check" class="w-4 h-4 text-green-600"></i></div><div><p class="text-sm font-medium">Confirmed</p><p class="text-xs text-text-secondary">Aug 2, 2026 at 9:00 AM</p></div></div>
-            <div class="flex gap-3"><div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0"><i data-lucide="clock" class="w-4 h-4 text-amber-600"></i></div><div><p class="text-sm font-medium">Awaiting session</p><p class="text-xs text-text-secondary">Scheduled for ${b.date}</p></div></div>
-          </div>
-        </div>
-      </div>
-      <div class="space-y-6">
-        <div class="bg-white rounded-2xl p-6 shadow-card border border-border-light text-center">
-          <img src="${MOCK.clients.find(c=>c.name===b.client)?.avatar}" class="w-16 h-16 rounded-full mx-auto mb-3" />
-          <h4 class="font-bold">${b.client}</h4>
-          <p class="text-xs text-text-secondary mb-4">Loyal client since 2024</p>
-          <button onclick="navigate('client-detail')" class="btn-ghost w-full py-2 text-sm">View Profile</button>
-        </div>
-        <div class="bg-primary rounded-2xl p-6 text-white">
-          <h4 class="font-bold mb-3">Quick Actions</h4>
-          <div class="space-y-2">
-            <button class="w-full py-2.5 text-sm bg-white/10 rounded-xl hover:bg-white/20 transition flex items-center justify-center gap-2"><i data-lucide="send" class="w-4 h-4"></i> Send Reminder</button>
-            <button class="w-full py-2.5 text-sm bg-white/10 rounded-xl hover:bg-white/20 transition flex items-center justify-center gap-2"><i data-lucide="file-text" class="w-4 h-4"></i> Generate Invoice</button>
-            <button class="w-full py-2.5 text-sm bg-accent text-primary rounded-xl hover:bg-accent-dark transition flex items-center justify-center gap-2 font-semibold"><i data-lucide="check-circle" class="w-4 h-4"></i> Mark Complete</button>
-          </div>
-        </div>
-      </div>
-    </div>`;
+      </div>`;
+  } catch (err) {
+    el.innerHTML = `
+      <button onclick="navigate('${backPage}')" class="flex items-center gap-2 text-sm text-text-secondary hover:text-primary transition mb-6"><i data-lucide="arrow-left" class="w-4 h-4"></i> ${backLabel}</button>
+      <div class="bg-white rounded-2xl p-12 shadow-card border border-border-light text-center">
+        <i data-lucide="alert-circle" class="w-12 h-12 text-error mx-auto mb-3"></i>
+        <p class="text-error font-medium">${err.message}</p>
+        <button onclick="navigate('booking-detail', '${type}:${id}')" class="btn-dark mt-4 px-6 py-2 text-sm">Retry</button>
+      </div>`;
+  }
   lucide.createIcons();
 }

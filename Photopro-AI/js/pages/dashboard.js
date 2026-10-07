@@ -39,6 +39,16 @@ function _dashTrend(current, previous) {
   return (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
 }
 
+// ADDED BY TEAM - Dashboard Upcoming Events: whole days from today to a yyyy-mm-dd date (0 = today)
+function _dashDaysAhead(d) {
+  const s = (d || '').toString().split('T')[0];
+  const [y, m, day] = s.split('-').map(Number);
+  if (!y || !m || !day) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((new Date(y, m - 1, day) - today) / 86400000);
+}
+
 // Cover images for upcoming event cards (reuses images already in the project)
 const DASH_EVENT_IMAGES = {
   wedding: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=400&q=80',
@@ -218,7 +228,8 @@ function renderDashboardData(data) {
     ? recentClients.map(c => {
       const id = c._id || c.id || '';
       return `
-      <div class="flex items-center gap-4 p-3 rounded-xl hover:bg-surface transition cursor-pointer" onclick="navigate('client-detail')">
+      <!-- ADDED BY TEAM - Dashboard Upcoming Events: pass the client id so the real detail page opens -->
+      <div class="flex items-center gap-4 p-3 rounded-xl hover:bg-surface transition cursor-pointer" onclick="navigate('client-detail', '${id}')">
         <div class="flex-1 min-w-0">
           <p class="font-semibold text-sm truncate">${c.name || '—'}</p>
           <p class="text-xs text-text-secondary">${bookingsByCust[id] || 0} bookings · Last: ${lastByCust[id] ? _dashFmtDate(lastByCust[id]) : '—'}</p>
@@ -232,18 +243,34 @@ function renderDashboardData(data) {
     : '<p class="text-text-secondary text-center py-8 text-sm">No clients yet.</p>';
 
   // ── Upcoming events (next 4 upcoming bookings) ──
+  // ADDED BY TEAM - Dashboard Upcoming Events: each card opens the real booking detail page
+  // ("type:id" for renderBookingDetail), and shows a countdown chip, time and status badge.
   const upcomingEvents = upcoming.slice(0, 4);
   const eventsHtml = upcomingEvents.length
-    ? upcomingEvents.map(e => `
-      <div class="card-hover rounded-xl overflow-hidden border border-border-light cursor-pointer" onclick="navigate('booking-detail')">
-        <div class="h-36 overflow-hidden"><img src="${_dashEventImage(e)}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" alt="${e._type === 'studio' ? (e.purpose || 'Studio Booking') : (e.event || 'Service')}" /></div>
+    ? upcomingEvents.map(e => {
+      const days = _dashDaysAhead(e.date);
+      const when = days === null ? '' : days <= 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days} days`;
+      return `
+      <div class="card-hover rounded-xl overflow-hidden border border-border-light cursor-pointer" onclick="navigate('booking-detail', '${e._type}:${e._id}')">
+        <div class="h-36 overflow-hidden relative">
+          <img src="${_dashEventImage(e)}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" alt="${e._type === 'studio' ? (e.purpose || 'Studio Booking') : (e.event || 'Service')}" />
+          ${when ? `<span class="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-primary/80 text-white text-[10px] font-semibold">${when}</span>` : ''}
+        </div>
         <div class="p-4">
-          <p class="font-semibold text-sm">${e._type === 'studio' ? `${e.studioId?.name || 'Studio'} – ${e.purpose || 'Booking'}` : `${e.event || 'Service'} – ${e.packageId?.name || e.photographerId?.name || 'Session'}`}</p>
+          <p class="font-semibold text-sm truncate">${e._type === 'studio' ? `${e.studioId?.name || 'Studio'} – ${e.purpose || 'Booking'}` : `${e.event || 'Service'} – ${e.packageId?.name || e.photographerId?.name || 'Session'}`}</p>
           <p class="text-xs text-text-secondary mt-1">${e.customerId?.name || '—'}</p>
           <div class="flex items-center gap-1.5 mt-3 text-xs text-accent font-medium"><i data-lucide="calendar" class="w-3.5 h-3.5"></i>${_dashFmtDate(e.date)}</div>
+          <div class="flex items-center justify-between mt-2">
+            <span class="text-xs text-text-secondary flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i>${_dashFmtTime(e.startTime)}${e.endTime ? ' – ' + _dashFmtTime(e.endTime) : ''}</span>
+            ${statusBadge(e.status || 'Pending')}
+          </div>
         </div>
-      </div>`).join('')
-    : '<p class="text-text-secondary text-center py-8 text-sm">No upcoming events.</p>';
+      </div>`;
+    }).join('')
+    : `<div class="sm:col-span-2 lg:col-span-4 text-center py-10">
+        <p class="text-text-secondary text-sm mb-4">No upcoming events. Bookings scheduled for today or later will appear here.</p>
+        <button onclick="navigate('bookings')" class="btn-gold px-5 py-2.5 text-sm inline-flex items-center gap-2"><i data-lucide="plus" class="w-4 h-4"></i> New Booking</button>
+      </div>`;
 
   // ── Demo-data banner (only when backend is unreachable) ──
   const banner = _dashDemoMode

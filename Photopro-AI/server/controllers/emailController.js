@@ -3,6 +3,10 @@
 // (SENDGRID_API_KEY). It is never returned in any response, never embedded in
 // the frontend, and never logged. The status endpoint reports a boolean only.
 const sgMail = require('@sendgrid/mail');
+// ADDED BY TEAM - Email Templates: branded, reusable bodies (HTML + plain-text
+// fallback, XSS-escaped) live in server/utils/emailTemplates.js. The generic
+// "This is a test email..." body below was replaced by these templates.
+const { buildTestEmail, buildBookingEmail } = require('../utils/emailTemplates');
 
 // ── BASIC EMAIL SHAPE CHECK (same rule enforced on the settings page) ──
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -78,25 +82,24 @@ exports.sendTestEmail = async (req, res, next) => {
     }
 
     // ── SEND VIA THE SENDGRID MAIL SEND API (v3/mail/send) ──
+    // ADDED BY TEAM - Email Templates: the old inline generic test body was
+    // replaced with the branded PhotoPro test template (HTML + text fallback),
+    // built from dynamic data — logged-in user name, recipient, configured
+    // sender address and the actual send timestamp. SendGrid integration,
+    // authentication and the sender configuration are unchanged.
     sgMail.setApiKey(apiKey);
-    const sentAt = new Date().toLocaleString();
+    const { subject, html, text } = buildTestEmail({
+      recipientName: (req.user && req.user.name) || to.split('@')[0],
+      recipientEmail: to,
+      fromEmail,
+      sentAt: new Date(),
+    });
     const msg = {
       to,
       from: { email: fromEmail, name: fromName || 'PhotoPro AI' },
-      subject: 'PhotoPro AI — Test Email',
-      text: `Hello,\n\nThis is a test email sent from your PhotoPro AI Management System via the SendGrid Mail Send API.\n\nIf you received this message, your email integration is working correctly.\n\nSent at ${sentAt} · PhotoPro AI Management System`,
-      html: `
-        <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden">
-          <div style="background:#1f2937;color:#f4e8c1;padding:20px 24px">
-            <h2 style="margin:0;font-size:18px">PhotoPro AI Management System</h2>
-          </div>
-          <div style="padding:24px;color:#333333;font-size:14px;line-height:1.6">
-            <p>Hello,</p>
-            <p>This is a <strong>test email</strong> sent via the <strong>SendGrid Mail Send API</strong>.</p>
-            <p>If you received this message, your email integration is working correctly.</p>
-            <p style="color:#888888;font-size:12px;margin-top:28px">Sent at ${sentAt} · PhotoPro AI Management System</p>
-          </div>
-        </div>`,
+      subject,
+      html,
+      text,
     };
     await sgMail.send(msg);
 
@@ -124,4 +127,38 @@ exports.sendTestEmail = async (req, res, next) => {
     // Network / DNS / unexpected failures
     return next(error);
   }
+};
+
+// ── REUSABLE PRODUCTION BOOKING EMAIL ──
+// ADDED BY TEAM - Email Templates: shared helper so real business features
+// (booking confirmations, updates, reminders...) can send a proper PhotoPro
+// email through the existing SendGrid integration. Builds the branded
+// HTML/text body via buildBookingEmail (dynamic, XSS-escaped) and throws on
+// invalid input or missing config — callers decide how to surface failures so
+// the calling business flow is never silently broken by email problems.
+// Usage: await emailController.sendBookingEmail({
+//   to: 'client@gmail.com', customerName: 'Sheni',
+//   subject: 'Your PhotoPro AI Booking Confirmation', heading: 'Booking Confirmation',
+//   message: 'Your booking has been confirmed. We look forward to your session!',
+//   booking: { id, service, date, startTime, endTime, staff, status, paymentStatus, amount },
+// });
+exports.sendBookingEmail = async ({ to, customerName, subject, heading, message, booking }) => {
+  const toAddr = String(to || '').trim().toLowerCase();
+  if (!toAddr || toAddr.length > 254 || !EMAIL_RE.test(toAddr)) {
+    throw new Error('A valid recipient email address is required.');
+  }
+  const { apiKey, fromEmail, fromName } = _emailConfig();
+  if (!apiKey || !fromEmail) {
+    throw new Error('SendGrid is not configured on the server (SENDGRID_API_KEY / SENDGRID_FROM_EMAIL).');
+  }
+  const built = buildBookingEmail({ customerName, subject, heading, message, booking });
+  sgMail.setApiKey(apiKey);
+  await sgMail.send({
+    to: toAddr,
+    from: { email: fromEmail, name: fromName || 'PhotoPro AI' },
+    subject: built.subject,
+    html: built.html,
+    text: built.text,
+  });
+  return { to: toAddr, subject: built.subject };
 };
