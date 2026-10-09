@@ -25,10 +25,21 @@ const NAV_ITEMS = [
 let currentPage = 'dashboard';
 const chartInstances = {};
 
+// ADDED BY TEAM - Detail pages highlight their parent section so the sidebar always
+// keeps an active nav item (css=.active) instead of having none on detail views
+function _activeNavId(page, param) {
+  if (NAV_ITEMS.some(i => i.id === page)) return page;
+  if (page === 'booking-detail' && typeof param === 'string' && param.indexOf('studio') === 0) return 'studio-bookings';
+  if (page === 'booking-detail') return 'bookings';
+  if (page === 'client-detail') return 'clients';
+  if (page === 'project-detail') return 'projects';
+  return page;
+}
+
 function buildSidebar() {
   const nav = document.getElementById('sidebar-nav');
   nav.innerHTML = NAV_ITEMS.map(item => {
-    const active = item.id === currentPage ? 'active' : '';
+    const active = item.id === _activeNavId(currentPage) ? 'active' : '';
     const badge = item.badge ? `<span class="badge">${item.badge}</span>` : '';
     const notif = item.id === 'notifications' ? `<span class="badge notif-count-badge hidden">0</span>` : '';
     return `<div class="nav-item ${active}" onclick="navigate('${item.id}')"><i data-lucide="${item.icon}" class="w-[18px] h-[18px]"></i><span>${item.label}</span>${badge}${notif}</div>`;
@@ -54,7 +65,7 @@ function navigate(page, param) {
   // Update sidebar active state
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const navItems = document.querySelectorAll('#sidebar-nav .nav-item');
-  const idx = NAV_ITEMS.findIndex(i => i.id === page);
+  const idx = NAV_ITEMS.findIndex(i => i.id === _activeNavId(page, param));
   if (idx >= 0 && navItems[idx]) navItems[idx].classList.add('active');
   // Close mobile sidebar
   const sidebar = document.getElementById('sidebar');
